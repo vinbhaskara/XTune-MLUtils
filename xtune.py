@@ -328,6 +328,7 @@ best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit
 
     print 'Return type is a dict. Check .keys() for details.'
 
+    results_dict = {}
     results_dict['best_model'] = best_model
     results_dict['best_eval_folds'] = best_eval_folds
     results_dict['best_cv_fold'] = best_cv_fold

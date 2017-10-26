@@ -15,6 +15,26 @@ Gaussian optimization of the parameters
 MP support across param grid
 '''
 
+def eval_gini(y_true, y_prob):
+    '''
+    Normalized Gini Coefficient Measure -- somewhat related to the AUC -- but more related to the ordering of the predictions.
+    Used in Kaggle for instance in the Safe Driver Prediction Challenge (binary classification pure xgboost competition).
+    Implementation by CPMP.
+    '''
+    y_true = np.asarray(y_true)
+    y_true = y_true[np.argsort(y_prob)]
+    ntrue = 0
+    gini = 0
+    delta = 0
+    n = len(y_true)
+    for i in range(n-1, -1, -1):
+        y_i = y_true[i]
+        ntrue += y_i
+        gini += y_i * delta
+        delta += 1 - y_i
+    gini = 1 - 2 * gini / (ntrue * (n - ntrue))
+    return gini
+
 def multiclass_log_loss(actual, y_pred, eps=1e-15):
     """Multi class version of Logarithmic Loss metric.
     https://www.kaggle.com/wiki/MultiClassLogLoss
@@ -37,8 +57,29 @@ def multiclass_log_loss(actual, y_pred, eps=1e-15):
     vsota = np.sum(actual * np.log(predictions))
     return -1.0 / rows * vsota
 
+def xgb_gini(pred, d_eval): 
+    # more is better like auc; only for binary problems
 
-def kag_auc(pred, d_eval):
+    obs = d_eval.get_label()
+    obs_onehot=[]
+
+    if pred.shape[1] == 1:
+        obs_onehot = obs
+    elif pred.shape[1] == 2:            
+        for i in obs:
+            if i==0:
+                obs_onehot.append([1, 0])
+            else:
+                obs_onehot.append([0, 1])
+    else:
+        print('Not valid for non-binary problems.')
+        raise
+    
+    gini_score = eval_gini(obs, pred[:,1])
+
+    return [('kaglloss', multiclass_log_loss(np.array(obs_onehot).astype(float), pred)), ('auc', roc_auc_score(np.array(obs_onehot).astype(float), pred)), ('gini', gini_score)]
+
+def xgb_auc(pred, d_eval):
     '''
     Sklearn auc for Xtune. 
     For binary class problems optimized with mlogloss for multi:softprob, this may be used for 
@@ -88,7 +129,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
                 'eval_metric':'mlogloss', # if feval is set then that overrides eval_metric
                 'objective':'multi:softprob',
                 'num_class':2,
-                'feval':'kag_auc', # feval overrides eval_metric for early stopping. You may pass custom functions too.
+                'feval':'xgb_auc', # feval overrides eval_metric for early stopping. You may pass custom functions too.
                 'maximize_feval': True
                 }
         3) val_data: xgb DMatrix for validation data 
@@ -104,8 +145,8 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
 
     param_xgb = param.copy() 
 
-    if param_xgb['feval'] == 'kag_auc':
-        param_xgb['feval'] = kag_auc
+    if param_xgb['feval'] == 'xgb_auc':
+        param_xgb['feval'] = xgb_auc
 
     if 'num_estimators' not in list(param_xgb.keys()):
         print('Choosing default num_estimators: ', 5000)
@@ -164,7 +205,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                         'subsample':[0.8],
                         'colsample_bytree':[0.8],
                         'num_class':[2],
-                        'feval':['kag_auc'], # feval overrides eval_metric for early stopping. You may pass custom functions too.
+                        'feval':['xgb_auc'], # feval overrides eval_metric for early stopping. You may pass custom functions too.
                         'maximize_feval': [True]
                         }
         3) randomized: False/True - To randomly choose points from the parameter Grid for Search (without replacement)
@@ -224,7 +265,8 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         num_iter=len(pg)
     if randomized:
         indices = np.random.choice(range(0, pglen), size=num_iter, replace=False)
-        allparams = pg[indices]
+        print(type(indices), type(pg))
+        allparams = np.array(list(pg))[indices]
     else:
         allparams = pg
 

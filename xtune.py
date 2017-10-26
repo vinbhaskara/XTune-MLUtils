@@ -1,12 +1,13 @@
+from __future__ import print_function
+
 import os
 from sklearn.model_selection import ParameterGrid
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import xgboost as xgb
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, log_loss
 import sys, gc
 import matplotlib.pyplot as plt 
-
 '''
 TODOS -
 Caliberating the predictions
@@ -14,7 +15,30 @@ Gaussian optimization of the parameters
 MP support across param grid
 '''
 
-def skl_auc(pred, d_eval):
+def multiclass_log_loss(actual, y_pred, eps=1e-15):
+    """Multi class version of Logarithmic Loss metric.
+    https://www.kaggle.com/wiki/MultiClassLogLoss
+    idea from this post:
+    http://www.kaggle.com/c/emc-data-science/forums/t/2149/is-anyone-noticing-difference-betwen-validation-and-leaderboard-error/12209#post12209
+    Parameters
+    ----------
+    y_true : array, shape = [n_samples]
+    y_pred : array, shape = [n_samples, n_classes]
+    Returns
+    -------
+    loss : float
+    """
+    predictions = np.clip(y_pred, eps, 1 - eps)
+
+    # normalize row sums to 1
+    predictions /= predictions.sum(axis=1)[:, np.newaxis]
+    rows = actual.shape[0]
+
+    vsota = np.sum(actual * np.log(predictions))
+    return -1.0 / rows * vsota
+
+
+def kag_auc(pred, d_eval):
     '''
     Sklearn auc for Xtune. 
     For binary class problems optimized with mlogloss for multi:softprob, this may be used for 
@@ -36,10 +60,10 @@ def skl_auc(pred, d_eval):
             else:
                 obs_onehot.append([0, 1])
     else:
-        print 'Not valid for non-binary problems.'
+        print('Not valid for non-binary problems.')
         raise
 
-    return 'auc', roc_auc_score(np.array(obs_onehot).astype(float), pred)
+    return [('kaglloss', multiclass_log_loss(np.array(obs_onehot).astype(float), pred)), ('auc', roc_auc_score(np.array(obs_onehot).astype(float), pred))]
 
 
     
@@ -64,7 +88,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
                 'eval_metric':'mlogloss', # if feval is set then that overrides eval_metric
                 'objective':'multi:softprob',
                 'num_class':2,
-                'feval':'skl_auc', # feval overrides eval_metric for early stopping. You may pass custom functions too.
+                'feval':'kag_auc', # feval overrides eval_metric for early stopping. You may pass custom functions too.
                 'maximize_feval': True
                 }
         3) val_data: xgb DMatrix for validation data 
@@ -75,27 +99,27 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
     '''
 
     if param is None:
-        print 'No param passed. Check an example: ', xtrain.__doc__
+        print('No param passed. Check an example: ', xtrain.__doc__)
         sys.exit()
 
     param_xgb = param.copy() 
 
-    if param_xgb['feval'] == 'skl_auc':
-        param_xgb['feval'] = skl_auc
+    if param_xgb['feval'] == 'kag_auc':
+        param_xgb['feval'] = kag_auc
 
-    if 'num_estimators' not in param_xgb.keys():
-        print 'Choosing default num_estimators: ', 5000
+    if 'num_estimators' not in list(param_xgb.keys()):
+        print('Choosing default num_estimators: ', 5000)
         param_xgb['num_estimators'] = 5000
-    if 'early_stopping' not in param_xgb.keys():
+    if 'early_stopping' not in list(param_xgb.keys()):
         param_xgb['early_stopping'] = 5
-    if 'feval' not in param_xgb.keys():
+    if 'feval' not in list(param_xgb.keys()):
         param_xgb['feval'] = None
 
 
     if val_data is None:
         watchlist=[(d_train, 'train')]
         if param_xgb['early_stopping'] is not None:
-            print 'Ignoring early stopping as no validation data passed.'
+            print('Ignoring early stopping as no validation data passed.')
             param_xgb['early_stopping']=None
     else:
         watchlist=[(d_train, 'train'),(val_data, 'val')]
@@ -140,7 +164,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                         'subsample':[0.8],
                         'colsample_bytree':[0.8],
                         'num_class':[2],
-                        'feval':['skl_auc'], # feval overrides eval_metric for early stopping. You may pass custom functions too.
+                        'feval':['kag_auc'], # feval overrides eval_metric for early stopping. You may pass custom functions too.
                         'maximize_feval': [True]
                         }
         3) randomized: False/True - To randomly choose points from the parameter Grid for Search (without replacement)
@@ -172,7 +196,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
     best_eval=None
     all_param_scores=[]
     holdout_indices=[]
-    train_indices=range(int(len(d_train.get_label().tolist())))
+    train_indices=list(range(int(len(d_train.get_label().tolist()))))
     best_ntree_limit=None
     best_validation_predictions=None
     best_model=None
@@ -182,7 +206,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
     if not isCV and d_holdout is None:
         skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=rand_state)
-        print 'Making a ', 100-100/folds, ' and ', 100/folds, ' split of Train:Test for Holdout.'
+        print('Making a ', 100-100//folds, ' and ', 100//folds, ' split of Train:Test for Holdout.')
         for tr, ts in skf.split(np.zeros(len(d_train.get_label().tolist())), d_train.get_label()):
             d_holdout = d_train.slice(ts)
             d_train = d_train.slice(tr)
@@ -195,11 +219,11 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
     pg = ParameterGrid(params)
     pglen=len(pg)
-    print 'Total Raw Grid Search Space to Sample: ', pglen
+    print('Total Raw Grid Search Space to Sample: ', pglen)
     if num_iter is None:
         num_iter=len(pg)
     if randomized:
-        indices = np.random.choice(xrange(0, pglen), size=num_iter, replace=False)
+        indices = np.random.choice(range(0, pglen), size=num_iter, replace=False)
         allparams = pg[indices]
     else:
         allparams = pg
@@ -216,32 +240,32 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
         val_pred=None # validation predictions of this param
 
-        print '\n'
-        print '#######################################################################'
+        print('\n')
+        print('#######################################################################')
 
         is_eval_more_better = False # error metric assumed default
         if param['feval'] is not None and param['maximize_feval'] is None:
-            print 'If want to use feval you must set maximize_feval. Now continuing without feval.'
+            print('If want to use feval you must set maximize_feval. Now continuing without feval.')
         elif param['feval'] is not None and param['maximize_feval'] == True:
             is_eval_more_better = True
-            print 'The eval metric is being maximized.'
+            print('The eval metric is being maximized.')
 
         if param['feval'] is None and param['eval_metric']=='auc':
             is_eval_more_better = True
-            print 'The eval metric is being maximized.'
+            print('The eval metric is being maximized.')
 
         if not is_eval_more_better:
-            print 'The eval metric is being minimized.'
+            print('The eval metric is being minimized.')
 
 
-        print 'Doing param ', counter, ' of total ', total,' - ', param, '\n'
+        print('Doing param ', counter, ' of total ', total,' - ', param, '\n')
         if not isCV: # holdout set 
 
             model, hist = xTrain(d_train, param, d_holdout, verbose_eval=verbose_eval)
             val_pred = model.predict(d_holdout, ntree_limit=model.best_ntree_limit)
 
-            print 'Holdout: Score ', model.best_score, ' Trees ',model.best_ntree_limit
-            print '\n'
+            print('Holdout: Score ', model.best_score, ' Trees ',model.best_ntree_limit)
+            print('\n')
 
             best_ntree_limit_folds.append(model.best_ntree_limit)
             best_ntree_score_folds.append(model.best_score)
@@ -256,7 +280,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             foldcounter=0
             for tr, ts in skf_split:
                 foldcounter+=1
-                print 'Doing CV fold #', foldcounter
+                print('Doing CV fold #', foldcounter)
                 xgb_train_cv = d_train.slice(tr)
                 xgb_val_cv = d_train.slice(ts)
 
@@ -267,8 +291,8 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                     val_pred=np.zeros((int(len(d_train.get_label().tolist())), val_pred_fold.shape[1]))
                 val_pred[ts]=val_pred_fold
 
-                print 'CV Fold: Score ', model.best_score, ' Trees ',model.best_ntree_limit
-                print '\n'
+                print('CV Fold: Score ', model.best_score, ' Trees ',model.best_ntree_limit)
+                print('\n')
 
                 best_ntree_limit_folds.append(model.best_ntree_limit)
                 best_ntree_score_folds.append(model.best_score)
@@ -314,19 +338,19 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             best_eval_folds=best_ntree_score_folds
             best_iteration=best_ntree_limit-1 # iteration is counted from 0 whereas trees from 1 (obvly)
 
-        print 'Params: ',param, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
-        '\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds
+        print('Params: ',param, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
+        '\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds)
 
-    print '\n'
-    print '***********************************************************************'
-    print 'Final Results\n'
-    print 'Best Params: ',best_param, '\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nBest Fold: ', \
-best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit
+    print('\n')
+    print('***********************************************************************')
+    print('Final Results\n')
+    print('Best Params: ',best_param, '\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nBest Fold: ', \
+best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
 
 
-    print '''\n\nReturned values are: best_model, best_eval_folds, best_cv_fold, best_ntree_limit, best_param, best_eval, best_param_scores, best_validation_predictions, all_param_scores, train_indices, holdout_indices.\n'''
+    print('''\n\nReturned values are: best_model, best_eval_folds, best_cv_fold, best_ntree_limit, best_param, best_eval, best_param_scores, best_validation_predictions, all_param_scores, train_indices, holdout_indices.\n''')
 
-    print 'Return type is a dict. Check .keys() for details.'
+    print('Return type is a dict. Check .keys() for details.')
 
     results_dict = {}
     results_dict['best_model'] = best_model

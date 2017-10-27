@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import os
+import os, pickle
 from sklearn.model_selection import ParameterGrid
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
@@ -77,7 +77,7 @@ def xgb_gini(pred, d_eval):
     
     gini_score = eval_gini(obs, pred[:,1])
 
-    return [('kaglloss', multiclass_log_loss(np.array(obs_onehot).astype(float), pred)), ('auc', roc_auc_score(np.array(obs_onehot).astype(float), pred)), ('gini', gini_score)]
+    return [('kaglloss', multiclass_log_loss(np.array(obs_onehot).astype(float), pred)), ('gini', gini_score), ('auc', roc_auc_score(np.array(obs_onehot).astype(float), pred))]
 
 def xgb_auc(pred, d_eval):
     '''
@@ -182,7 +182,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
 
 
 def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=None, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True):
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, save_prefix='', save_folder='./model_pool'):
     '''       
 
     Usage:
@@ -217,6 +217,9 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         training data provided given d_holdout is None
         8) d_holdout: Data for holdout. If specified, then folds has no effect.
         9) verbose_eval: True/False - verbosity - printing each round stats
+        10) save_models: Save each and every model - both across CV and across param grid - For say like Stacking later on.
+        11) save_prefix: prefix filename while saving model files
+        12) save_folder: Folder where to save the models if save_models is True
 
     Note:
         If isCV is True does Cross Validation (Stratified) for folds times over d_train data.
@@ -244,6 +247,9 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
     best_param_scores=None
     best_cv_fold=None
     best_eval_folds=None
+    
+    if save_folder is not None:
+        os.system('mkdir -p '+save_folder)
 
     if not isCV and d_holdout is None:
         skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=rand_state)
@@ -264,7 +270,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
     if num_iter is None:
         num_iter=len(pg)
     if randomized:
-        indices = np.random.choice(range(0, pglen), size=num_iter, replace=False)
+        indices = np.random.choice(range(0, pglen), size=num_iter, replace=False)            
         print(type(indices), type(pg))
         allparams = np.array(list(pg))[indices]
     else:
@@ -305,6 +311,20 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
             model, hist = xTrain(d_train, param, d_holdout, verbose_eval=verbose_eval)
             val_pred = model.predict(d_holdout, ntree_limit=model.best_ntree_limit)
+            
+            if save_models:
+                filename=save_folder + '/'+save_prefix+'_holdout_'+'param'+str(counter)
+                fmodel = open(filename+'.model', 'wb')
+                pickle.dump(model, fmodel)
+                fmodel.close()
+
+                fhist = open(filename+'.hist', 'wb')
+                pickle.dump(hist, fhist)
+                fhist.close()
+                
+                fparam = open(filename+'.param', 'wb')
+                pickle.dump(param, fparam)
+                fparam.close()
 
             print('Holdout: Score ', model.best_score, ' Trees ',model.best_ntree_limit)
             print('\n')
@@ -328,6 +348,21 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
                 model, hist = xTrain(xgb_train_cv, param, xgb_val_cv, verbose_eval=verbose_eval)
                 val_pred_fold = model.predict(xgb_val_cv, ntree_limit=model.best_ntree_limit)
+                
+                if save_models:
+                    filename=save_folder + '/'+save_prefix+'_cv_'+'param'+str(counter)+'_fold'+str(foldcounter)
+                    fmodel = open(filename+'.model', 'wb')
+                    pickle.dump(model, fmodel)
+                    fmodel.close()
+                    
+                    fhist = open(filename+'.hist', 'wb')
+                    pickle.dump(hist, fhist)
+                    fhist.close()
+                    
+                    fparam = open(save_prefix+'_cv_'+'param'+str(counter)+'.param', 'wb')
+                    pickle.dump(param, fparam)
+                    fparam.close()
+                    
 
                 if val_pred is None:
                     val_pred=np.zeros((int(len(d_train.get_label().tolist())), val_pred_fold.shape[1]))

@@ -11,6 +11,7 @@ def load_array(fname):
 
 # Criag Glastonbury 23rd on PB LB (0.5 logloss) did a preprocessing of normalizing the RGB histogram with
 # Obvly it gave him great results than us (~1 logloss) :/
+import cv2
 
 def normalized(rgb):
     norm=np.zeros((rgb.shape[0], rgb.shape[1], 3),np.float32)

@@ -182,7 +182,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
 
 
 def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=None, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True, save_models=False, save_prefix='', save_folder='./model_pool'):
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, save_prefix='', save_folder='./model_pool', limit_complexity=None):
     '''       
 
     Usage:
@@ -220,7 +220,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         10) save_models: Save each and every model - both across CV and across param grid - For say like Stacking later on.
         11) save_prefix: prefix filename while saving model files
         12) save_folder: Folder where to save the models if save_models is True
-
+        13) limit_complexity: Very useful function when trying to find the best model in a hyperparameter search with less number of rounds for fast decisions. Complexity is defined as max_depth*num_estimators. If limit_complexity is provided, then the num_estimators will be determined from the max_depth by num_estimators=limit_complexity/max_depth so that the hyperparam searching is fair. (Eg. Think of optimizing max_depth=[1,2] with 5 rounds. Obvly, that is unfair, as the later is more complex than former).
     Note:
         If isCV is True does Cross Validation (Stratified) for folds times over d_train data.
         If isCV is False, then does a holdout by taking the d_holdout data.
@@ -304,6 +304,15 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
         if not is_eval_more_better:
             print('The eval metric is being minimized.')
+            
+        if limit_complexity is not None:
+            num_estimators = int(int(limit_complexity)/param['max_depth'])
+            if num_estimators<=0:
+                print('Limit estimators passed, but this round has resultant num_estimators <=0. Hence skipping.')
+                continue
+                
+            param['num_estimators']=num_estimators
+            print('num estimators under limit complexity: ', num_estimators)
 
 
         print('Doing param ', counter, ' of total ', total,' - ', param, '\n')

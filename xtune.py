@@ -354,6 +354,9 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 print('Doing CV fold #', foldcounter)
                 xgb_train_cv = d_train.slice(tr)
                 xgb_val_cv = d_train.slice(ts)
+                
+                xgb_train_cv.feature_names=d_train.feature_names
+                xgb_val_cv.feature_names=d_train.feature_names
 
                 model, hist = xTrain(xgb_train_cv, param, xgb_val_cv, verbose_eval=verbose_eval)
                 val_pred_fold = model.predict(xgb_val_cv, ntree_limit=model.best_ntree_limit)

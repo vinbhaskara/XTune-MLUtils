@@ -371,7 +371,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                     pickle.dump(hist, fhist)
                     fhist.close()
                     
-                    fparam = open(save_prefix+'_cv_'+'param'+str(counter)+'.param', 'wb')
+                    fparam = open(filename+'.param', 'wb')
                     pickle.dump(param, fparam)
                     fparam.close()
                     

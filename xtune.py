@@ -11,9 +11,9 @@ import sys, gc
 import matplotlib.pyplot as plt 
 '''
 TODOS -
-Caliberating the predictions
-Gaussian optimization of the parameters 
-MP support across param grid
+-- Caliberating the predictions
+-- Bayesian hyperparameter optimization of the parameters using Gaussian Processes
+-- MP support across param grid
 '''
 @jit
 def eval_gini(y_true, y_prob):

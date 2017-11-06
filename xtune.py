@@ -4,6 +4,7 @@ import os, pickle
 from sklearn.model_selection import ParameterGrid
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
+from numba import jit # Compile intensive functions inline to C code for faster perf
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score, log_loss
 import sys, gc
@@ -14,7 +15,7 @@ Caliberating the predictions
 Gaussian optimization of the parameters 
 MP support across param grid
 '''
-
+@jit
 def eval_gini(y_true, y_prob):
     '''
     Normalized Gini Coefficient Measure -- somewhat related to the AUC -- but more related to the ordering of the predictions.
@@ -35,6 +36,7 @@ def eval_gini(y_true, y_prob):
     gini = 1 - 2 * gini / (ntrue * (n - ntrue))
     return gini
 
+@jit
 def multiclass_log_loss(actual, y_pred, eps=1e-15):
     """Multi class version of Logarithmic Loss metric.
     https://www.kaggle.com/wiki/MultiClassLogLoss

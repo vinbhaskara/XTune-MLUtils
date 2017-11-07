@@ -69,7 +69,10 @@ def create_pairwise_feature_interactions(df, custom_ops=[], columns=None, type='
             else:
                 newdf[i] = df[i]
         
-        return newdf, feature_importances(newdf)    
+        if 'target' in newdf.columns:
+            return newdf, feature_importances(newdf)    
+        else: 
+            return newdf
             
     
     if columns is None:
@@ -100,8 +103,12 @@ def create_pairwise_feature_interactions(df, custom_ops=[], columns=None, type='
                 newdf['newfeature|'+columns[i]+'|'+columns[j]+'|add'] = df[columns[i]] + df[columns[j]]
                 
         counter1+=1
-    
-    return newdf, feature_importances(newdf)    
+        
+        
+    if 'target' in newdf.columns:
+        return newdf, feature_importances(newdf)    
+    else:
+        return newdf
 
 
 

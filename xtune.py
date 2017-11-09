@@ -10,7 +10,12 @@ from sklearn.metrics import roc_auc_score, log_loss
 import sys, gc
 import matplotlib.pyplot as plt 
 '''
-TODOS -
+** TODOS **
+-- [High Priority]: Currently the best parameters in CV are chosen based on the "Averaged" Eval Score across 
+the folds. This is inaccurate. Instead, we need to choose parameters based on an "Overall"
+Eval score which is based on the OOF (out-of-fold) validation predictions of the CV training runs.
+
+-- [Future]
 -- Caliberating the predictions
 -- Bayesian hyperparameter optimization of the parameters using Gaussian Processes
 -- MP support across param grid

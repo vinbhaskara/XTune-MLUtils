@@ -380,7 +380,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 
                 if foldcounter == 1:
                     if skip_param_if_same_eval:
-                        if model.best_score in model_first_fold_eval and save_models is True:
+                        if model.best_score in model_first_fold_eval:
                             print('Not doing param as same eval already acheived.')
                             skipParam=True
                             break

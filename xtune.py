@@ -10,15 +10,10 @@ from sklearn.metrics import roc_auc_score, log_loss
 import sys, gc
 import matplotlib.pyplot as plt 
 '''
-** TODOS **
--- [High Priority]: Currently the best parameters in CV are chosen based on the "Averaged" Eval Score across 
-the folds. This is inaccurate. Instead, we need to choose parameters based on an "Overall"
-Eval score which is based on the OOF (out-of-fold) validation predictions of the CV training runs.
-
--- [Future]
--- Caliberating the predictions
--- Bayesian hyperparameter optimization of the parameters using Gaussian Processes
--- MP support across param grid
+TODOS -
+Caliberating the predictions
+Gaussian optimization of the parameters 
+MP support across param grid
 '''
 @jit
 def eval_gini(y_true, y_prob):
@@ -189,7 +184,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
 
 
 def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=None, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True, save_models=False, save_prefix='', save_folder='./model_pool', limit_complexity=None):
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='', save_folder='./model_pool', limit_complexity=None):
     '''       
 
     Usage:
@@ -228,6 +223,8 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         11) save_prefix: prefix filename while saving model files
         12) save_folder: Folder where to save the models if save_models is True
         13) limit_complexity: Very useful function when trying to find the best model in a hyperparameter search with less number of rounds for fast decisions. Complexity is defined as max_depth*num_estimators. If limit_complexity is provided, then the num_estimators will be determined from the max_depth by num_estimators=limit_complexity/max_depth so that the hyperparam searching is fair. (Eg. Think of optimizing max_depth=[1,2] with 5 rounds. Obvly, that is unfair, as the later is more complex than former).
+        14) skip_param_if_same_eval: This option saves the model while iterating only if the eval metric value for that parameter results in a number that has already not resulted previously (eg. some iterations over regularizations alone produce the exact same result). In case of CV folds, all 1st folds' eval is maintained, and if current matches that, remaining rounds are skipped saving time. (Also useful while ensembling a population of models for Kaggle).
+        
     Note:
         If isCV is True does Cross Validation (Stratified) for folds times over d_train data.
         If isCV is False, then does a holdout by taking the d_holdout data.
@@ -285,9 +282,13 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
     total = len(allparams)
     counter=0
+    
+    model_first_fold_eval = [] # maintaing list of eval metric to skip repeat evals (check skip_param_if_same_eval)
+    
     for param in allparams:
         counter+=1
 
+        skipParam=False
         best_ntree_limit_folds=[]
         best_ntree_score_folds=[]
         ntree_hist_scores_folds=[]
@@ -328,7 +329,16 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             model, hist = xTrain(d_train, param, d_holdout, verbose_eval=verbose_eval)
             val_pred = model.predict(d_holdout, ntree_limit=model.best_ntree_limit)
             
-            if save_models:
+            if skip_param_if_same_eval:
+                if model.best_score in model_first_fold_eval:
+                    print('Not doing param as same eval already acheived.')
+                    skipParam=True
+                    continue
+                else:
+                    model_first_fold_eval.append(model.best_score)
+            
+            if save_models:                        
+                        
                 filename=save_folder + '/'+save_prefix+'_holdout_'+'param'+str(counter)
                 fmodel = open(filename+'.model', 'wb')
                 pickle.dump(model, fmodel)
@@ -368,6 +378,15 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 model, hist = xTrain(xgb_train_cv, param, xgb_val_cv, verbose_eval=verbose_eval)
                 val_pred_fold = model.predict(xgb_val_cv, ntree_limit=model.best_ntree_limit)
                 
+                if foldcounter == 1:
+                    if skip_param_if_same_eval:
+                        if model.best_score in model_first_fold_eval and save_models is True:
+                            print('Not doing param as same eval already acheived.')
+                            skipParam=True
+                            break
+                        else:
+                            model_first_fold_eval.append(model.best_score)
+                
                 if save_models:
                     filename=save_folder + '/'+save_prefix+'_cv_'+'param'+str(counter)+'_fold'+str(foldcounter)
                     fmodel = open(filename+'.model', 'wb')
@@ -383,6 +402,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                     fparam.close()
                     
 
+                
                 if val_pred is None:
                     val_pred=np.zeros((int(len(d_train.get_label().tolist())), val_pred_fold.shape[1]))
                 val_pred[ts]=val_pred_fold
@@ -394,7 +414,9 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 best_ntree_score_folds.append(model.best_score)
                 ntree_hist_scores_folds.append(hist)
                 best_model_lst.append(model)
-
+                
+            if skipParam:
+                continue
 
         if is_eval_more_better:
             best_score_across_folds=max(best_ntree_score_folds)
@@ -411,20 +433,23 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                                                 'best_ntree_limit_across_folds': best_ntree_limit_across_folds, \
                                                 'best_score_across_folds': best_score_across_folds, \
                                                 'best_fold': best_fold}])
+        
+        
+        current_eval = sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)) # Average Eval Metric
 
         update=False
         if best_eval is None:
             update=True
         else:
             if is_eval_more_better:
-                if model.best_score > best_eval:
+                if current_eval > best_eval:
                     update=True
             else:
-                if model.best_score < best_eval:
+                if current_eval < best_eval:
                     update=True
 
         if update:
-            best_eval = sum(best_ntree_score_folds)/float(len(best_ntree_score_folds))
+            best_eval = current_eval
             best_param = param.copy()
             best_ntree_limit = best_ntree_limit_across_folds
             best_validation_predictions=val_pred

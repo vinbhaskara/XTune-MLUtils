@@ -219,7 +219,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         training data provided given d_holdout is None
         8) d_holdout: Data for holdout. If specified, then folds has no effect.
         9) verbose_eval: True/False - verbosity - printing each round stats
-        10) save_models: Save each and every model - both across CV and across param grid - For say like Stacking later on.
+        10) save_models: Save each and every model - both across CV and across param grid - For say like Stacking later on. Also saves val preds or holdout preds.
         11) save_prefix: prefix filename while saving model files
         12) save_folder: Folder where to save the models if save_models is True
         13) limit_complexity: Very useful function when trying to find the best model in a hyperparameter search with less number of rounds for fast decisions. Complexity is defined as max_depth*num_estimators. If limit_complexity is provided, then the num_estimators will be determined from the max_depth by num_estimators=limit_complexity/max_depth so that the hyperparam searching is fair. (Eg. Think of optimizing max_depth=[1,2] with 5 rounds. Obvly, that is unfair, as the later is more complex than former).
@@ -351,6 +351,9 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 fparam = open(filename+'.param', 'wb')
                 pickle.dump(param, fparam)
                 fparam.close()
+                
+                valpreddf = pd.DataFrame(val_pred)
+                valpreddf.to_csv(filename+'.holdout')
 
             print('Holdout: Score ', model.best_score, ' Trees ',model.best_ntree_limit)
             print('\n')
@@ -417,6 +420,11 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 
             if skipParam:
                 continue
+                
+        if save_models:
+            fname = save_folder + '/'+save_prefix+'_cv_'+'param'+str(counter)
+            valpreddf = pd.DataFrame(val_pred)
+            valpreddf.to_csv(fname+'.validation')
 
         if is_eval_more_better:
             best_score_across_folds=max(best_ntree_score_folds)

@@ -8,6 +8,7 @@ from numba import jit # Compile intensive functions inline to C code for faster 
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score, log_loss
 import sys, gc
+import pandas as pd
 import matplotlib.pyplot as plt 
 '''
 TODOS -
@@ -254,6 +255,10 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
     
     if save_folder is not None:
         os.system('mkdir -p '+save_folder)
+        os.system('mkdir -p '+save_folder+'/valpred')
+        os.system('mkdir -p '+save_folder+'/model')
+        os.system('mkdir -p '+save_folder+'/history')
+        os.system('mkdir -p '+save_folder+'/param')
 
     if not isCV and d_holdout is None:
         skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=rand_state)
@@ -339,21 +344,21 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             
             if save_models:                        
                         
-                filename=save_folder + '/'+save_prefix+'_holdout_'+'param'+str(counter)
-                fmodel = open(filename+'.model', 'wb')
+                filename= save_prefix+'_holdout_'+'param'+str(counter)
+                fmodel = open(save_folder+'/model/'+filename+'.model', 'wb')
                 pickle.dump(model, fmodel)
                 fmodel.close()
 
-                fhist = open(filename+'.hist', 'wb')
+                fhist = open(save_folder+'/history/'+filename+'.hist', 'wb')
                 pickle.dump(hist, fhist)
                 fhist.close()
                 
-                fparam = open(filename+'.param', 'wb')
+                fparam = open(save_folder+'/param/'+filename+'.param', 'wb')
                 pickle.dump(param, fparam)
                 fparam.close()
                 
                 valpreddf = pd.DataFrame(val_pred)
-                valpreddf.to_csv(filename+'.holdout')
+                valpreddf.to_csv(save_folder+'/valpred/'+filename+'.holdout')
 
             print('Holdout: Score ', model.best_score, ' Trees ',model.best_ntree_limit)
             print('\n')
@@ -391,16 +396,16 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                             model_first_fold_eval.append(model.best_score)
                 
                 if save_models:
-                    filename=save_folder + '/'+save_prefix+'_cv_'+'param'+str(counter)+'_fold'+str(foldcounter)
-                    fmodel = open(filename+'.model', 'wb')
+                    filename=save_prefix+'_cv_'+'param'+str(counter)+'_fold'+str(foldcounter)
+                    fmodel = open(save_folder+'/model/'+filename+'.model', 'wb')
                     pickle.dump(model, fmodel)
                     fmodel.close()
                     
-                    fhist = open(filename+'.hist', 'wb')
+                    fhist = open(save_folder+'/history/'+filename+'.hist', 'wb')
                     pickle.dump(hist, fhist)
                     fhist.close()
                     
-                    fparam = open(filename+'.param', 'wb')
+                    fparam = open(save_folder+'/param/'+filename+'.param', 'wb')
                     pickle.dump(param, fparam)
                     fparam.close()
                     
@@ -422,9 +427,9 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 continue
                 
         if save_models:
-            fname = save_folder + '/'+save_prefix+'_cv_'+'param'+str(counter)
+            fname = save_prefix+'_cv_'+'param'+str(counter)
             valpreddf = pd.DataFrame(val_pred)
-            valpreddf.to_csv(fname+'.validation')
+            valpreddf.to_csv(save_folder+'/valpred/'+fname+'.validation')
 
         if is_eval_more_better:
             best_score_across_folds=max(best_ntree_score_folds)

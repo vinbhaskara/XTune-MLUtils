@@ -20,6 +20,8 @@ def RankAverager(valpreds, testpreds, predcol='pred'):
     Suitable for Binary class problems.
     Output ranks are displayed in column 'rank_avg_<predcol>' and 'rank_avg_<predcol>_proba' for Class 1.
     You may repeat this per class proba column for multiclass problems, for example.
+    
+    Very efficient implementation! Uses Binary Search.
     '''
     print('Val: ', valpreds.shape)
     print('Test: ',testpreds.shape)

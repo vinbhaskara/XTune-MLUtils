@@ -1,3 +1,48 @@
+'''
+Created on Nov 18, 2017
+
+@author: Vineeth_Bhaskara
+'''
+
+from __future__ import print_function
+import numpy as np
+import pandas as pd
+import pickle
+import os
+import sys
+import bcolz
+import cv2
+
+
+def RankAverager(valpreds, testpreds, predcol='pred'):
+    '''
+    Expects <predcol> as the column for prediction values that need be ranked ascending wise - say Class 1. 
+    Suitable for Binary class problems.
+    Output ranks are displayed in column 'rank_avg_<predcol>' and 'rank_avg_<predcol>_proba' for Class 1.
+    You may repeat this per class proba column for multiclass problems, for example.
+    '''
+    print('Val: ', valpreds.shape)
+    print('Test: ',testpreds.shape)
+    
+    valpreds['rank_type'] = 'validation'
+    testpreds['rank_type'] = 'test'
+    
+    valpreds = valpreds.sort_values(by=predcol, ascending=True)
+    
+    valpreds.reset_index(drop=True, inplace=True)
+    valpreds['rank_id'] = np.arange(valpreds.shape[0])
+    
+    testpreds.reset_index(drop=True, inplace=True)
+    testpreds['rank_id'] = np.arange(testpreds.shape[0])
+    
+    rank_avgs = valpreds[predcol].searchsorted(testpreds[predcol]) + 1
+    
+    testpreds['rankavg_'+predcol]  = rank_avgs    
+    testpreds['rankavg_'+predcol+'_proba']  = np.array(rank_avgs)/float(valpreds.shape[0]+1)
+    
+    return testpreds.copy() 
+
+
 def gaussian_feature_importances(df, missing_value=-1, skip_columns=['id','target']):
     '''
     If missing_value is provided then fields having -1 are neglected while generating feature importances.
@@ -111,8 +156,7 @@ def create_pairwise_feature_interactions(df, custom_ops=[], columns=None, type='
         return newdf
 
 
-
-import bcolz
+# saving huge arrays without loss of precision or disk size constraint
 def save_array(fname, arr):
     c=bcolz.carray(arr, rootdir=fname, mode='w')
     c.flush()
@@ -125,8 +169,6 @@ def load_array(fname):
 
 # Criag Glastonbury 23rd on PB LB (0.5 logloss) did a preprocessing of normalizing the RGB histogram with
 # Obvly it gave him great results than us (~1 logloss) :/
-import cv2
-
 def normalized(rgb):
     norm=np.zeros((rgb.shape[0], rgb.shape[1], 3),np.float32)
     b=rgb[:,:,0]
@@ -155,9 +197,4 @@ def get_im_cv2(path):
     # Reduce to manageable size
     resized = cv2.resize(output_3, (224, 224), interpolation = cv2.INTER_LINEAR)
     return resized
-
-
-# Whenever using pretrained models, please be sure to do the necessary preprocessing on the inputs
-# A lot of tutorials online for transfer learning miss this very important step. 
-# Example for VGG 16 in Keras (it's got a readymade function, use it!):
-from keras.applications.vgg16 import preprocess_input # Input preprocessing for VGG16 pretrained model
+    

@@ -16,6 +16,27 @@ Caliberating the predictions
 Gaussian optimization of the parameters 
 MP support across param grid
 '''
+
+class Logger(object):
+    '''
+    Custom logger to log the print statements into a file to track processes for instance after closing Jupyter Screen
+    '''
+    
+    def __init__(self, logfile='logfile'):
+        self.terminal = sys.stdout
+        self.log = open(logfile+".log", "a")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)  
+
+    def flush(self):
+        #this flush method is needed for python 3 compatibility.
+        #this handles the flush command by doing nothing.
+        #you might want to specify some extra behavior here.
+        pass 
+
+
 @jit
 def eval_gini(y_true, y_prob):
     '''
@@ -118,7 +139,7 @@ def gcRefresh():
     gc.collect()
 
 
-def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
+def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, logfile='logfile'):
     '''
     Usage:
         1) d_train: xgb DMatrix of Train data
@@ -141,6 +162,8 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
         
         Returns: trained model, and history dictionary
     '''
+    stdout_backup = sys.stdout
+    sys.stdout = Logger(logfile)
 
     if param is None:
         print('No param passed. Check an example: ', xtrain.__doc__)
@@ -180,12 +203,15 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True):
              evals_result=history_dict,
              xgb_model=prev_model, # allows continuation of previously trained model
              verbose_eval=verbose_eval)
+             
+    sys.stdout=stdout_backup
     return xgb_model, history_dict.copy()
 
 
 
 def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=None, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='', save_folder='./model_pool', limit_complexity=None):
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='', 
+              save_folder='./model_pool', limit_complexity=None, logfile='logfile'):
     '''       
 
     Usage:
@@ -225,7 +251,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         12) save_folder: Folder where to save the models if save_models is True
         13) limit_complexity: Very useful function when trying to find the best model in a hyperparameter search with less number of rounds for fast decisions. Complexity is defined as max_depth*num_estimators. If limit_complexity is provided, then the num_estimators will be determined from the max_depth by num_estimators=limit_complexity/max_depth so that the hyperparam searching is fair. (Eg. Think of optimizing max_depth=[1,2] with 5 rounds. Obvly, that is unfair, as the later is more complex than former).
         14) skip_param_if_same_eval: This option saves the model while iterating only if the eval metric value for that parameter results in a number that has already not resulted previously (eg. some iterations over regularizations alone produce the exact same result). In case of CV folds, all 1st folds' eval is maintained, and if current matches that, remaining rounds are skipped saving time. (Also useful while ensembling a population of models for Kaggle).
-        
+        15) logfile: specify a logfile to also print to file in addition to stdout, for example, for logging status even while Jupyter screen is closed.
     Note:
         If isCV is True does Cross Validation (Stratified) for folds times over d_train data.
         If isCV is False, then does a holdout by taking the d_holdout data.
@@ -240,6 +266,8 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
     *best_model would be the a list of models across folds of the best parameter.
 
     '''
+    stdout_backup=sys.stdout
+    sys.stdout=Logger(logfile)
 
     best_param=None
     best_eval=None
@@ -498,7 +526,8 @@ best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
     results_dict['all_param_scores'] = all_param_scores
     results_dict['train_indices'] = train_indices
     results_dict['holdout_indices'] = holdout_indices
-
+    
+    sys.stdout=stdout_backup
     return results_dict
 
 

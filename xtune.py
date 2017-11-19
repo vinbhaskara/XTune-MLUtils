@@ -500,7 +500,7 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             best_eval_folds=best_ntree_score_folds
             best_iteration=best_ntree_limit-1 # iteration is counted from 0 whereas trees from 1 (obvly)
 
-        print('Params: ',param, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
+        print('Params: ',param, '\nCV Rounds: ', best_ntree_limit_folds, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
         '\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds)
 
     print('\n')

@@ -286,15 +286,15 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
         and while passing categorical columns, ensure the pandas dataframe passed to Dataset has those dtypes as categorical (then no need of onehotting)
         Example:
         
-		for i in cols:
-			if i in catcols:
-				train_csv[i] = train_csv[i].astype('category')
-			else:
-				train_csv[i] = train_csv[i].astype(float)
-		
-		d_train = lgb.Dataset(train_csv[cols], label=train_csv['target'], feature_name=cols, free_raw_data=False)
-		
-		NOTE: If using LGB, you MUST set lgb_raw_train NUMPY MATRIX with RAW traindata that was used to make 
+        for i in cols:
+            if i in catcols:
+                train_csv[i] = train_csv[i].astype('category')
+            else:
+                train_csv[i] = train_csv[i].astype(float)
+        
+        d_train = lgb.Dataset(train_csv[cols], label=train_csv['target'], feature_name=cols, free_raw_data=False)
+        
+        NOTE: If using LGB, you MUST set lgb_raw_train NUMPY MATRIX with RAW traindata that was used to make 
         lgb Dataset object.
         
         2) params: dictionary with list of possible values for a parameter as keys
@@ -320,28 +320,28 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                         'tree_method':['exact', 'hist']
                         }
                         
-					lgbparam = {'boosting_type':['gbdt'],
-					 'num_estimators': [5000],
-					 'is_unbalance': [False],  
-					 'num_leaves': [8, 4, 12, 16], # number of leaves in one tree
-					 'early_stopping': [20], 
-					 'learning_rate': [0.05], 
-					 'min_data_in_leaf': [25, 500], # min_child_samples
-					 'use_missing': [True], # -1
-					 'num_threads': [3], 
-					 'objective': ['binary'],
-					 'feature_fraction': [0.8, 0.3], # colsample_bytree
-					 'predict_raw_score': [False], 
-					 'bagging_freq': [5, 10, 2], # subsample_freq
-					 'bagging_fraction': [0.8, 0.7], # subsample
-					 'lambda_l2': [0.0],
-					 'max_bin':[255, 10, 20], # def 255
-					 'feval':[None],
-					 'maximize_feval':[True],
-					 'num_class':[1],
-					 'max_depth':[-1, 4, 6], # def -1
-					 'min_hessian':[1e-3, 0.05], # min_child_weight def 1e-3
-					 'eval_metric':[['binary_logloss', 'auc']]}
+                    lgbparam = {'boosting_type':['gbdt'],
+                     'num_estimators': [5000],
+                     'is_unbalance': [False],  
+                     'num_leaves': [8, 4, 12, 16], # number of leaves in one tree
+                     'early_stopping': [20], 
+                     'learning_rate': [0.05], 
+                     'min_data_in_leaf': [25, 500], # min_child_samples
+                     'use_missing': [True], # -1
+                     'num_threads': [3], 
+                     'objective': ['binary'],
+                     'feature_fraction': [0.8, 0.3], # colsample_bytree
+                     'predict_raw_score': [False], 
+                     'bagging_freq': [5, 10, 2], # subsample_freq
+                     'bagging_fraction': [0.8, 0.7], # subsample
+                     'lambda_l2': [0.0],
+                     'max_bin':[255, 10, 20], # def 255
+                     'feval':[None],
+                     'maximize_feval':[True],
+                     'num_class':[1],
+                     'max_depth':[-1, 4, 6], # def -1
+                     'min_hessian':[1e-3, 0.05], # min_child_weight def 1e-3
+                     'eval_metric':[['binary_logloss', 'auc']]}
                         
                        
         3) randomized: False/True - To randomly choose points from the parameter Grid for Search (without replacement)

@@ -10,6 +10,7 @@ from sklearn.metrics import roc_auc_score, log_loss
 import sys, gc
 import pandas as pd
 import matplotlib.pyplot as plt 
+import lightgbm as lgb
 '''
 TODOS -
 Caliberating the predictions
@@ -23,12 +24,16 @@ class Logger(object):
     '''
     
     def __init__(self, logfile='logfile'):
-        self.terminal = sys.stdout
-        self.log = open(logfile+".log", "a")
+        self.terminal =  sys.__stdout__
+        self.logfile = logfile
+        
 
     def write(self, message):
         self.terminal.write(message)
-        self.log.write(message)  
+        self.log = open(self.logfile+".log", "a")
+        self.log.write(message) 
+        self.log.close()
+        sys.stdout.flush()
 
     def flush(self):
         #this flush method is needed for python 3 compatibility.
@@ -129,38 +134,19 @@ def xgb_auc(pred, d_eval):
         raise
 
     return [('kaglloss', multiclass_log_loss(np.array(obs_onehot).astype(float), pred)), ('auc', roc_auc_score(np.array(obs_onehot).astype(float), pred))]
-
-def lgb_auc(pred, d_eval):
-    '''
-    Change xgb fevals to as required by LightGBM (mainly a third argument is_higher_better)
-    '''
-
-    output = xgb_auc(pred, d_eval)
-    is_higher_better = True
-    
-    return ('auc', output[1][1], is_higher_better)
-
-def lgb_gini(pred, d_eval):
-    '''
-    Change xgb fevals to as required by LightGBM (mainly a third argument is_higher_better)
-    '''
-
-    output = xgb_gini(pred, d_eval)
-    is_higher_better = True
-    
-    return [('gini', output[1][1], is_higher_better), ('auc', output[2][1], is_higher_better)] 
     
     
-def xPredict( model, d_pred, boosting='xgb'):
+def xPredict( model, d_pred, boosting_alg='xgb', lgb_best_iteration=-1):
     '''
     Simple xgb/lgb Predict alternative with best_iteration implementation
     to avoid silly mistakes.
     '''
     
-    if boosting=='xgb':
+    if boosting_alg=='xgb':
         return model.predict(d_pred, ntree_limit=model.best_ntree_limit)
-    elif boosting=='lgb':
-        return model.predict(d_pred, num_iteration=bst.best_iteration)
+    elif boosting_alg=='lgb':
+        return model.predict(d_pred, num_iteration=lgb_best_iteration)
+
     else:
         print('Boosting should be either xgb or lgb. No valid option passed.')
         raise
@@ -169,11 +155,14 @@ def gcRefresh():
     gc.collect()
 
 
-def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, boosting='xgb', 
-           logfile='logfile', lgb_categorical_feats='auto', lgb_learning_rates=None):
+def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, boosting_alg='xgb', 
+           logfile='logfile',  lgb_categorical_feats='auto', lgb_learning_rates=None):
     '''
     Usage:
-        1) d_train: xgb/lgb DMatrix of Train data
+        1) d_train: xgb/lgb DMatrix of Train data (if lgb, preferably use free_raw_data=False while constructing,
+        example: 
+        d_train = lgb.Dataset(train_csv[cols], label=train_csv['target'], feature_name=cols, free_raw_data=False))
+        
         2) param: Training parameters
                Example default param -
                 param_xgb_default={'booster':'gbtree',
@@ -184,7 +173,8 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
                                 'objective':'multi:softprob',
                                 'num_class':2,
                                 'feval':'xgb_auc', # feval overrides eval_metric for early stopping. You may pass custom functions too.
-                                'maximize_feval': True
+                                'maximize_feval': True,
+                                'tree_method':'exact' #'hist' for lightGBM-like
                                 }
                 
                 lgbparam = { 'num_estimators': 250,
@@ -195,19 +185,20 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
                              'min_data_in_leaf': 25, 
                              'use_missing': False, # -1
                              'num_threads': 48, 
-                             'objective': 'binary', # multi:softprob
+                             'objective': 'binary', 
                              'feature_fraction': 0.8, 
                              'predict_raw_score': True, 
                              'bagging_freq': 5, 
                              'bagging_fraction': 0.8, 
                              'lambda_l2': 0.0,
-                             'feval':'lgb_auc'}
+                             'feval':None,
+                             'metric':'auc'}
         3) val_data: xgb DMatrix for validation data 
         4) prev_model: for continuing training
-        5) verbose_eval: True/False - To display individual boosting rounds stats
+        5) verbose_eval: True/False - To display individual boosting_alg rounds stats
         
         Specify a list of Categorical columns in lgb_categorical_feats for using
-        inbuilt OHE of LightGBM (valid only when boosting='lgb')
+        inbuilt OHE of LightGBM (valid only when boosting_alg='lgb')
         Note that the categorical columns MUST be of int type. If symbolic strings, 
         please convert to some numeric encoding before passing here.
         
@@ -215,12 +206,12 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
         
         Returns: trained model, and history dictionary
     '''
-    stdout_backup = sys.stdout
-    sys.stdout = Logger(logfile)
-
     if param is None:
         print('No param passed. Check an example: ', xtrain.__doc__)
         sys.exit()
+        
+    stdout_backup = sys.stdout
+    sys.stdout = Logger(logfile)
 
     param_xgb = param.copy() 
 
@@ -237,8 +228,8 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
     if 'feval' not in list(param_xgb.keys()):
         param_xgb['feval'] = None
         
-    if 'boosting' in list(param_xgb.keys()):
-        boosting = param_xgb['boosting']
+    if 'boosting_alg' in list(param_xgb.keys()):
+        boosting_alg = param_xgb['boosting_alg']
         
     
     if val_data is None:
@@ -257,11 +248,15 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
     feval=None
     if param_xgb['feval'] is not None:
         feval=param_xgb['feval']
+ 
     else:
-        if boosting=='xgb':
+        if boosting_alg=='xgb':
             param['maximize_feval'] = False
+            
+    if 'feval' in param_xgb.keys():
+        del param_xgb['feval']
         
-    if boosting=='xgb':
+    if boosting_alg=='xgb':
         
         model=xgb.train(param_xgb, d_train, num_boost_round=param_xgb['num_estimators'], 
                  evals=watchlist,feval=feval, maximize=param_xgb['maximize_feval'], # custom metric for early stopping
@@ -270,7 +265,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
                  xgb_model=prev_model, # allows continuation of previously trained model
                  verbose_eval=verbose_eval)
         
-    elif boosting=='lgb':
+    elif boosting_alg=='lgb':
         model=lgb.train(param_xgb, d_train, num_boost_round=param_xgb['num_estimators'],
                        valid_sets=valid_sets, valid_names=valid_names, feval=feval,
                        init_model=prev_model, categorical_feature=lgb_categorical_feats,
@@ -282,13 +277,18 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
     return model, history_dict.copy()
 
 
-def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=None, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='', 
-              save_folder='./model_pool', limit_complexity=None, logfile='logfile', boosting='xgb'):
+def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter=None, rand_state=None, isCV=True, 
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='',save_folder='./model_pool', limit_complexity=None, logfile='logfile', boosting_alg='xgb'):
     '''       
 
     Usage:
-        1) d_train: xgb DMatrix Training Data
+        1) d_train: xgb/lgb DMatrix of Train data (if lgb, preferably use free_raw_data=False while constructing,
+        example
+        d_train = lgb.Dataset(train_csv[cols], label=train_csv['target'], feature_name=cols, free_raw_data=False))
+        
+        NOTE: If using LGB, you MUST set lgb_raw_train NUMPY MATRIX with RAW traindata that was used to make 
+        lgb Dataset object.
+        
         2) params: dictionary with list of possible values for a parameter as keys
                    Example params:
                     params_xgb_default_dict={
@@ -308,8 +308,30 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                         'colsample_bytree':[0.8],
                         'num_class':[2],
                         'feval':['xgb_auc'], # feval overrides eval_metric for early stopping. You may pass custom functions too.
-                        'maximize_feval': [True]
+                        'maximize_feval': [True],
+                        'tree_method':['exact', 'hist']
                         }
+                        
+                      lgbparam = { 'num_estimators': [10],
+                         'is_unbalance': [False],  
+                         'num_leaves': [8], # number of leaves in one tree
+                         'early_stopping': [1], 
+                         'learning_rate': [0.1], 
+                         'min_data_in_leaf': [25], 
+                         'use_missing': [False], # -1
+                         'num_threads': [1], 
+                         'objective': ['binary'],
+                         'feature_fraction': [0.8], 
+                         'predict_raw_score': [True], 
+                         'bagging_freq': [5], 
+                         'bagging_fraction': [0.8], 
+                         'lambda_l2': [0.0],
+                         'feval':[None],
+                         'maximize_feval':[True],
+                         'num_class':[1],
+                        'eval_metric':[['binary_logloss', 'auc']]}
+                        
+                       
         3) randomized: False/True - To randomly choose points from the parameter Grid for Search (without replacement)
         4) num_iter: Specified when randomized=True to limit the total number of random parameters considered. If None,
         run continues till the parameter grid is exhausted
@@ -325,11 +347,14 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         13) limit_complexity: Very useful function when trying to find the best model in a hyperparameter search with less number of rounds for fast decisions. Complexity is defined as max_depth*num_estimators. If limit_complexity is provided, then the num_estimators will be determined from the max_depth by num_estimators=limit_complexity/max_depth so that the hyperparam searching is fair. (Eg. Think of optimizing max_depth=[1,2] with 5 rounds. Obvly, that is unfair, as the later is more complex than former).
         14) skip_param_if_same_eval: This option saves the model while iterating only if the eval metric value for that parameter results in a number that has already not resulted previously (eg. some iterations over regularizations alone produce the exact same result). In case of CV folds, all 1st folds' eval is maintained, and if current matches that, remaining rounds are skipped saving time. (Also useful while ensembling a population of models for Kaggle).
         15) logfile: specify a logfile to also print to file in addition to stdout, for example, for logging status even while Jupyter screen is closed.
-    Note:
+    Note 1:
         If isCV is True does Cross Validation (Stratified) for folds times over d_train data.
         If isCV is False, then does a holdout by taking the d_holdout data.
         If isCV is False and d_holdout is None, then one stratified split of (100-100/folds):100/folds 
         is made train/holdout, and returns the holdout indices.
+        
+    Note 2:
+        Last member of the eval_metric is used for select best param during CV/GridSearch if feval is None.
 
 
     Return Value: A dictionary with the following keys:
@@ -339,9 +364,13 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
     *best_model would be the a list of models across folds of the best parameter.
 
     '''
+    if boosting_alg=='lgb' and lgb_raw_train is None:
+        print('Please set lgb_raw_train before continuing.')
+        sys.exit()
+        
     stdout_backup=sys.stdout
     sys.stdout=Logger(logfile)
-
+    
     best_param=None
     best_eval=None
     all_param_scores=[]
@@ -366,12 +395,13 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         print('Making a ', 100-100//folds, ' and ', 100//folds, ' split of Train:Test for Holdout.')
         for tr, ts in skf.split(np.zeros(len(d_train.get_label().tolist())), d_train.get_label()):
             
-            if boosting=='xgb':
+            if boosting_alg=='xgb':
                 d_holdout = d_train.slice(ts)
                 d_train = d_train.slice(tr)
-            elif boosting=='lgb':
+            elif boosting_alg=='lgb':
                 d_holdout = d_train.subset(ts)
                 d_train = d_train.subset(tr)
+                x_holdout = lgb_raw_train[ts]
             
             holdout_indices=ts
             train_indices=tr
@@ -416,24 +446,30 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             print('If want to use feval you must set maximize_feval for the grid search to know to keep best. Now continuing without feval.')
         elif param['feval'] is not None and param['maximize_feval'] == True:
             is_eval_more_better = True
-            print('The eval metric is being maximized.')
+            print('The eval metric is being maximized.')               
         
-        if boosting=='lgb': # Lgb doesnt take this param
-            if 'maximize_feval' in param.keys():
-                del param['maximize_feval']
 
-        if param['feval'] is None and param['eval_metric']=='auc':
+        if param['feval'] is None and (param['eval_metric']=='auc' or param['eval_metric'][-1]=='auc'):
             is_eval_more_better = True
             print('The eval metric is being maximized.')
+            
+        if boosting_alg=='lgb': # Lgb doesnt take this param
+            if 'maximize_feval' in param.keys():
+                del param['maximize_feval']
+                
+            if 'eval_metric' in param.keys():
+                param['metric'] = param['eval_metric']
+                del param['eval_metric']
+            
 
         if not is_eval_more_better:
             print('The eval metric is being minimized.')
             
         if limit_complexity is not None:
             
-            if boosting=='xgb':
+            if boosting_alg=='xgb':
                 num_estimators = int(int(limit_complexity)/param['max_depth']) # depth wise complexity per round
-            elif boosting='lgb':
+            elif boosting_alg=='lgb':
                 num_estimators = int(int(limit_complexity)/param['num_leaves']) # leaves wise complexity per round
             if num_estimators<=0:
                 print('Limit estimators passed, but this round has resultant num_estimators <=0. Hence skipping.')
@@ -446,15 +482,28 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
         print('Doing param ', counter, ' of total ', total,' - ', param, '\n')
         if not isCV: # holdout set 
 
-            model, hist = xTrain(d_train, param, d_holdout, verbose_eval=verbose_eval, logfile=logfile, boosting=boosting)
-            val_pred = xPredict(model, d_holdout, boosting)
+            model, hist = xTrain(d_train, param, d_holdout, verbose_eval=verbose_eval, logfile=logfile, boosting_alg=boosting_alg)
             
-            if boosting=='xgb':
+            
+            if boosting_alg=='xgb':
+                val_pred = xPredict(model, d_holdout, boosting_alg)
+                
                 now_best_score = model.best_score #xgb
                 now_best_limit = model.best_ntree_limit
-            elif boosting=='lgb':
-                now_best_score = model.best_score_ #lgb
-                now_best_limit = model.best_iteration + 1
+            elif boosting_alg=='lgb':
+                
+                metric_to_use = param['metric']
+                
+                if str(type(metric_to_use)) == "<type 'list'>":
+                    metric_to_use=param['metric'][-1]
+                    
+                if is_eval_more_better:
+                    now_best_score = max(hist['val'][metric_to_use])
+                else:
+                    now_best_score = min(hist['val'][metric_to_use])
+
+                now_best_limit = hist['val'][metric_to_use].index(now_best_score) + 1
+                val_pred = xPredict(model, x_holdout, boosting_alg, lgb_best_iteration=now_best_limit)
                 
             if skip_param_if_same_eval:
                 if now_best_score in model_first_fold_eval:
@@ -500,26 +549,41 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
                 foldcounter+=1
                 print('Doing CV fold #', foldcounter)
                 
-                if boosting=='xgb':
+                if boosting_alg=='xgb':
                     xgb_train_cv = d_train.slice(tr)
                     xgb_val_cv = d_train.slice(ts)
-                elif boosting=='lgb':
+                elif boosting_alg=='lgb':
                     xgb_train_cv = d_train.subset(tr)
                     xgb_val_cv = d_train.subset(ts)
+                    x_val_cv = lgb_raw_train[ts]
                 
-                # is this the same for lgb?
-                xgb_train_cv.feature_names=d_train.feature_names
-                xgb_val_cv.feature_names=d_train.feature_names
+                if boosting_alg=='xgb':
+                    # xgboost seems to miss the feature labels after slicing
+                    xgb_train_cv.feature_names=d_train.feature_names
+                    xgb_val_cv.feature_names=d_train.feature_names
                 
-                model, hist = xTrain(xgb_train_cv, param, xgb_val_cv, verbose_eval=verbose_eval, logfile=logfile, boosting=boosting)
-                val_pred_fold = xPredict(model, xgb_val_cv, boosting)
+                model, hist = xTrain(xgb_train_cv, param, xgb_val_cv, verbose_eval=verbose_eval, logfile=logfile, boosting_alg=boosting_alg)
 
-                if boosting=='xgb':
+                if boosting_alg=='xgb':
+                    val_pred_fold = xPredict(model, xgb_val_cv, boosting_alg)
+                    
                     now_best_score = model.best_score #xgb
                     now_best_limit = model.best_ntree_limit
-                elif boosting=='lgb':
-                    now_best_score = model.best_score_ #lgb
-                    now_best_limit = model.best_iteration + 1
+                elif boosting_alg=='lgb':
+                   
+                    metric_to_use = param['metric']
+
+                    if str(type(metric_to_use)) == "<type 'list'>":
+                        metric_to_use=param['metric'][-1]
+                        
+                    if is_eval_more_better:
+                        now_best_score = max(hist['val'][metric_to_use])
+                    else:
+                        now_best_score = min(hist['val'][metric_to_use])
+
+                    now_best_limit = hist['val'][metric_to_use].index(now_best_score) + 1                    
+                    val_pred_fold = xPredict(model, x_val_cv, boosting_alg, lgb_best_iteration=now_best_limit)
+                    
                
                 if foldcounter == 1:
                     if skip_param_if_same_eval:
@@ -547,7 +611,10 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
                 
                 if val_pred is None:
-                    val_pred=np.zeros((int(len(d_train.get_label().tolist())), val_pred_fold.shape[1]))
+                    if len(val_pred_fold.shape)==1: # for binary cases
+                        val_pred=np.zeros((int(len(d_train.get_label().tolist())),))
+                    else:
+                        val_pred=np.zeros((int(len(d_train.get_label().tolist())), val_pred_fold.shape[1]))
                 val_pred[ts]=val_pred_fold
 
                 print('CV Fold: Score ', now_best_score, ' Trees ',now_best_limit)
@@ -568,11 +635,11 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
 
         if is_eval_more_better:
             best_score_across_folds=max(best_ntree_score_folds)
-            best_fold = best_ntree_score_folds.index(max(best_ntree_score_folds))
+            best_fold = best_ntree_score_folds.index(max(best_ntree_score_folds))+1
         else:
             best_score_across_folds=min(best_ntree_score_folds)
-            best_fold = best_ntree_score_folds.index(min(best_ntree_score_folds))
-        best_ntree_limit_across_folds=best_ntree_limit_folds[best_fold]
+            best_fold = best_ntree_score_folds.index(min(best_ntree_score_folds))+1
+        best_ntree_limit_across_folds=best_ntree_limit_folds[best_fold-1]
         
         current_eval = sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)) # Average Eval Metric
         stddev_eval = np.std(np.array(best_ntree_score_folds))
@@ -614,15 +681,14 @@ def xGridSearch( d_train, params, randomized=False, num_iter=None, rand_state=No
             best_param_scores=all_param_scores[-1]
             best_cv_fold=best_fold
             best_eval_folds=best_ntree_score_folds
-            best_iteration=best_ntree_limit-1 # iteration is counted from 0 whereas trees from 1 (obvly)
 
         print('Params: ',param, '\nCV Rounds: ', best_ntree_limit_folds, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
-        '\n StdDev CV score: ',stddev_eval,'\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds)
+        '\nStdDev CV score: ',stddev_eval,'\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds)
 
     print('\n')
     print('***********************************************************************')
     print('Final Results\n')
-    print('Best Params: ',best_param, '\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nBest Fold: ', \
+    print('Best Params: ',best_param, '\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nStdDev CV score: ',best_eval_stddev,'\nBest Fold: ', \
 best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
 
 

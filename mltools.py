@@ -15,7 +15,14 @@ import random
 from xtune import *
 from sklearn.metrics import roc_auc_score, log_loss
 
-
+def normalizedf(df):
+    '''
+    Normalizes dataframe columns to 1. Send in slice of those columns
+    that have to be normalized.
+    '''
+    df = df.div(df.sum(axis=1), axis=0)
+    return df
+    
 # Dealing with categorical features Way 1
 def target_encode(trn_series=None, tst_series=None, target=None, in_samples_leaf=1,
                   smoothing=1, noise_level=0):

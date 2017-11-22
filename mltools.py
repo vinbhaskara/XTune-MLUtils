@@ -621,7 +621,10 @@ def create_pairwise_feature_interactions(df, custom_ops=[], columns=None, type='
 # easy pickles
 def get(name):
     f=open(name, 'rb')
-    mod = pickle.load(f)
+    try:
+        mod = pickle.load(f)
+    except:
+        mod = pickle.load(f, encoding='latin1') # to resolve python 2 vs 3 incompatibility of pickles
     f.close()
     return mod
 

@@ -13,6 +13,20 @@ import bcolz
 import cv2
 
 
+
+
+def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False, niters=1000, coarseness=0.01):
+	'''
+	DesperateFitter v1.12 - If you are desperate enough to not try a regression model!
+	Iterates through Random weights that sum up to 1 and maximize a 
+	measure on a target.
+	
+	thrustMode: When true, takes models pairwise and calculates weights successively greedily. 
+	Therefore, then it becomes very very important to input dflist in the order of decreasing "good-ness" of the respective model.
+	'''
+	
+	
+
 def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     '''
     Expects <predcol> as the column for prediction values that need be ranked ascending wise - say Class 1. 

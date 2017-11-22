@@ -11,24 +11,10 @@ import os
 import sys
 import bcolz
 import cv2
+import random
+from xtune import *
+from sklearn.metrics import roc_auc_score, log_loss
 
-
-
-
-
-
-
-def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False, niters=1000, coarseness=0.01):
-    '''
-    DesperateFitter v1.12 - If you are desperate enough to not try a regression model!
-    Iterates through Random weights that sum up to 1 and maximize a 
-    measure on a target.
-    
-    thrustMode: When true, takes models pairwise and calculates weights successively greedily. 
-    Therefore, then it becomes very very important to input dflist in the order of decreasing "good-ness" of the respective model.
-    '''
-    
-    
 
 def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     '''
@@ -71,6 +57,289 @@ def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     
     return testpreds.copy() 
     
+def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False, niters=1000, 
+                    metric=['logloss','gini','auc'], is_more_better=True, coarseness=10, custom_weight_functions=[np.exp]):
+    '''
+    DesperateFitter v1.12 - If you are desperate enough to not try a regression model!
+    Iterates through Random weights that sum up to 1 and maximize a 
+    measure on a target.
+    
+    dflist: is the validation predictions of various models (type list)
+    
+    metric: you may pass multiple metrics as functions in a list. But the best pick would be based on the 
+    last member of the list for which is_more_better is applicable
+    
+    custom_weight_functions: use this to pass a function that weights the individual model scores
+    supported only for auc and logloss
+    
+    thrustMode: When true, takes models pairwise and calculates weights successively greedily starting by
+    fitting the best models and then the lesser good models. 
+    
+    '''
+    from sklearn.metrics import roc_auc_score, log_loss
+    if metric[-1] == 'auc':
+        is_more_better = True
+    elif metric[-1] == 'logloss':
+        is_more_better = False
+        
+    def calcMetrics(dfs, weight, silent=True):
+        newdf = dfs[0].copy()
+        
+        for predcol in predcols:
+            newdf[predcol] = dfs[0][predcol]*weight[0]
+            for j in range(1, len(dfs)):
+                newdf[predcol] += dfs[j][predcol]*weight[j]
+            
+        metric_results = []
+        metric_labels = []
+        
+        if not silent:
+            print(weight ,end='  ')
+        counter = 0
+        for i in metric:
+            metric_label = None
+            if i == 'auc':
+                metric_label='auc'
+                i=roc_auc_score
+            elif i=='logloss':
+                metric_label='ll'
+                i=log_loss
+            elif i=='gini':
+                metric_label='gini'
+                i=eval_gini
+            else:
+                metric_label='metric'+str(counter)
+                
+            if len(predcols)==1:
+                metric_result = i(newdf['target'], newdf[predcols[0]])   
+            else:
+                metric_result = i(newdf['target'], newdf[predcols])    
+            metric_results.append(metric_result)
+            metric_labels.append(metric_label)
+            
+            if not silent:
+                print(metric_label, ':', metric_result, '\t', end='')
+            
+            counter+=1
+        
+        return metric_labels, metric_results
+    
+    
+    nummodels = len(dflist)   
+    
+    if nummodels >= coarseness:
+        print('Coarness set is not compatible to the number of models input. Adjusting...')
+        coarseness = nummodels*3
+        
+    
+    init_weights = np.eye(nummodels).tolist()
+    init_weights.append((np.ones((1, nummodels))/float(nummodels)).tolist()[0])
+    
+   
+    print('Init Metrics: ')
+    init_metrics = []    
+    all_init_metrics = []
+    for wt in init_weights:
+  
+        label, metric_results = calcMetrics(dflist, wt, silent=False)                       
+        init_metrics.append(metric_results[-1]) # evaluation based on only the last metric
+        all_init_metrics.append(metric_results)
+        print('\n')
+        
+    best_metric = None
+    wt_index=None
+    if is_more_better:
+        best_metric = max(init_metrics)
+    else:
+        best_metric = min(init_metrics)
+    best_weights = init_weights[init_metrics.index(best_metric)]
+    
+    
+    print('\n\nEvaling custom metrics')
+    # add custom functions to check performances when weighted by indiv model score
+    custom_weights = []
+    custom_metrics = []
+    
+    # identity function
+    identityfunc = lambda x: x
+    inversefunc = lambda x: 1.0/np.abs(x)
+    
+    if 'logloss' in metric:
+        loglosses = []
+        # collect loglosses
+        
+        for i in range(nummodels):
+            loglosses.append(all_init_metrics[i][metric.index('logloss')])
+        loglosses = np.array(loglosses)
+        
+        for wtfunction in custom_weight_functions + [inversefunc]:
+            wts = wtfunction(-1.0 * loglosses)
+            
+            custom_weights.append(wts/np.sum(wts))
+    
+    if 'auc' in metric:
+        aucs = []
+        # collect aucs
+        
+        for i in range(nummodels):
+            aucs.append(all_init_metrics[i][metric.index('auc')])
+        aucs = np.array(aucs)
+        
+        for wtfunction in custom_weight_functions + [identityfunc]:
+            wts = wtfunction(aucs)
+            custom_weights.append(wts/np.sum(wts))
+            
+    
+    for wt in custom_weights:
+  
+        label, metric_results = calcMetrics(dflist, wt, silent=False)                       
+        custom_metrics.append(metric_results[-1]) # evaluation based on only the last metric
+        print('\n')
+        
+    custom_best_metric = None
+    if is_more_better:
+        custom_best_metric = max(custom_metrics)
+        if custom_best_metric>best_metric:
+            best_metric = custom_best_metric
+            best_weights = custom_weights[custom_metrics.index(custom_best_metric)]
+    else:
+        custom_best_metric = min(custom_metrics)
+        if custom_best_metric<best_metric:
+            best_metric = custom_best_metric
+            best_weights = custom_weights[custom_metrics.index(custom_best_metric)] 
+    
+    
+    
+    print('The best eval metric on initial weights is: ', best_metric, ' with weights: ', 
+          best_weights, '\n')            
+       
+    print('\nStarting random search for weights... \n')
+    
+    if not thrustMode:
+        
+        for iters in range(niters):
+            randnums = []
+            for x in range(nummodels):
+                randnums.append(random.randint(1, int(coarseness)))
+            randnums = np.array(randnums)
+
+            randweights = randnums/np.sum(randnums)
+            metric_labels, metric_results = calcMetrics(dflist, randweights, silent=True)
+            
+            if is_more_better:
+                if metric_results[-1] > best_metric:
+                    best_metric = metric_results[-1]
+                    best_weights = randweights
+                    
+                    print(randweights, end='  ')
+                    for i in range(len(metric_labels)):
+                        print(metric_labels[i], ':', metric_results[i], '\t', end='')
+                    print('\n')
+            else:
+                if metric_results[-1] < best_metric:
+                    best_metric = metric_results[-1]
+                    best_weights = randweights
+                    
+                    print(randweights, end='  ')
+                    for i in range(len(metric_labels)):
+                        print(metric_labels[i], ':', metric_results[i], '\t', end='')
+                    print('\n')
+                        
+    else: # thrust mode!
+        
+        # First sort the models based on their individual goodness
+        model_priority = []
+        init_metrics_top = init_metrics[:-1].copy()
+        
+        init_metrics_top_sorted = init_metrics_top.copy()
+        if is_more_better:
+            init_metrics_top_sorted.sort(reverse=True)
+        else:
+            init_metrics_top_sorted.sort()
+            
+        for i in init_metrics_top_sorted:
+            model_priority.append(init_metrics_top.index(i))
+        
+        print('\nModel Priority: ', model_priority)
+        
+        
+        df1 = dflist[model_priority[0]].copy()
+        print('Thrusting round 1: Models: ', model_priority[0], ' and ', model_priority[1], '\n')
+        
+        best_thrust_weights = []
+        for i in range(1, nummodels):
+            if i!=1:
+                print('\nIncremental Thrusting ',i,' with Model', model_priority[i],'\n')
+            df2 = dflist[model_priority[i]].copy()
+            
+            goodweights12 = None 
+            goodeval = None
+            for weight1 in np.arange(0, 1, 1.0/coarseness)[::-1]:
+                
+                weights12 = [weight1, 1.0-weight1]
+                metric_labels, metric_results = calcMetrics([df1, df2], weights12, silent=True)
+
+                if goodeval is None:
+                    goodeval = metric_results[-1]
+                    goodweights12 = weights12
+                    print(goodweights12, end='  ')
+                    for i in range(len(metric_labels)):
+                        print(metric_labels[i], ':', metric_results[i], '\t', end='')
+                    print('\n')
+                    
+                else:
+                    
+                    if is_more_better:
+                        if metric_results[-1] > goodeval:
+                            goodeval = metric_results[-1]
+                            goodweights12 = weights12
+
+                            print(goodweights12, end='  ')
+                            for i in range(len(metric_labels)):
+                                print(metric_labels[i], ':', metric_results[i], '\t', end='')
+                            print('\n')
+                    else:
+                        if metric_results[-1] < goodeval:
+                            goodeval = metric_results[-1]
+                            goodweights12 = weights12
+
+                            print(goodweights12, end='  ')
+                            for i in range(len(metric_labels)):
+                                print(metric_labels[i], ':', metric_results[i], '\t', end='')
+                            print('\n')
+                            
+            best_thrust_weights.append(goodweights12)
+            
+            df1[predcols] = df1[predcols]*goodweights12[0] + df2[predcols]*goodweights12[1]
+            
+        
+        print(best_thrust_weights)
+        
+        final_thrust_weights = np.array(best_thrust_weights[0].copy())
+        
+        for j in range(1, len(best_thrust_weights)):
+            
+            final_thrust_weights = final_thrust_weights*best_thrust_weights[j][0]
+            final_thrust_weights = final_thrust_weights.tolist()
+            final_thrust_weights.append(best_thrust_weights[j][1])
+            final_thrust_weights = np.array(final_thrust_weights)
+            
+        final_thrust_weights = final_thrust_weights.tolist()
+        
+        # get the final thrust weights in the right order 
+        final_thrust_weights_right_order = []
+        
+        for i in model_priority:
+            final_thrust_weights_right_order.append(final_thrust_weights[i])        
+        
+        best_weights = final_thrust_weights_right_order
+        
+    
+    metric_labels, metric_results = calcMetrics(dflist, best_weights, silent=True)
+
+    print('\n\nThe best eval is: ', metric_labels, ' - ', metric_results, ' with weights: ', 
+      best_weights, '\n')   
+    return best_weights, metric_labels, metric_results
 
 
 def gaussian_feature_importances(df, missing_value=-1, skip_columns=['id','target']):

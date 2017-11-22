@@ -723,7 +723,7 @@ best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
     sys.stdout=stdout_backup
     return results_dict
     
-def getModelPoolStats(modelpool_dirs=['./model_pool'], metric=['auc','gini','binary_logloss','kaglloss','log_loss']):
+def getModelPoolStats(modelpool_dirs=['./model_pool'], metric=['auc','gini','binary_logloss','kaglloss']):
     curdir = os.getcwd()
     counter=0
     records = []

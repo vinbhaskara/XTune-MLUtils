@@ -727,7 +727,7 @@ def getModelPoolStats(modelpool_dirs=[], metric=['auc','gini','binary_logloss','
     curdir = os.getcwd()
     counter=0
     records = []
-    columns = ['model']
+    columns = ['pool','model']
     first=True
     for folder in modelpool_dirs:
         for f in os.listdir(folder+'/history/'):
@@ -735,7 +735,8 @@ def getModelPoolStats(modelpool_dirs=[], metric=['auc','gini','binary_logloss','
             param = get(folder+'/param/'+f.split('param')[0]+'param'+f.split('param')[1].split('_')[0]+'.param')
             param = str(param)
             rec = []
-            rec.append(str(counter)+'-'+f.split('.')[0])
+            rec.append(counter)
+            rec.append(f.split('.')[0])
             
             for m in metric:
                 if m not in hist['val'].keys():
@@ -762,6 +763,7 @@ def getModelPoolStats(modelpool_dirs=[], metric=['auc','gini','binary_logloss','
             rec.append(param)
             records.append(rec)
             first=False
+        counter+=1
             
     df = pd.DataFrame(records)
     df.columns = columns

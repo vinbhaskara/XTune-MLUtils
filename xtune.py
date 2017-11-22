@@ -722,3 +722,48 @@ best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
     
     sys.stdout=stdout_backup
     return results_dict
+    
+def getModelPoolStats(modelpool_dirs=[], metric=['auc','gini','binary_logloss','kaglloss','log_loss']):
+    curdir = os.getcwd()
+    counter=0
+    records = []
+    columns = ['model']
+    first=True
+    for folder in modelpool_dirs:
+        for f in os.listdir(folder+'/history/'):
+            hist = get(folder+'/history/'+ f)
+            param = get(folder+'/param/'+f.split('param')[0]+'param'+f.split('param')[1].split('_')[0]+'.param')
+            param = str(param)
+            rec = []
+            rec.append(str(counter)+'-'+f.split('.')[0])
+            
+            for m in metric:
+                if m not in hist['val'].keys():
+                    continue
+                if first:
+                    columns.append('val-'+m)
+                    
+                if 'loss' in m:
+                    rec.append(min(hist['val'][m]))
+                else:
+                    rec.append(max(hist['val'][m]))
+                
+            for m in metric:
+                if m not in hist['train'].keys():
+                    continue
+                if first:
+                    columns.append('tr-'+m)  
+                if 'loss' in m:
+                    rec.append(min(hist['train'][m]))
+                else:
+                    rec.append(max(hist['train'][m])) 
+            if first:
+                columns.append('param')
+            rec.append(param)
+            records.append(rec)
+            first=False
+            
+    df = pd.DataFrame(records)
+    df.columns = columns
+    
+    return df          

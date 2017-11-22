@@ -454,6 +454,18 @@ def create_pairwise_feature_interactions(df, custom_ops=[], columns=None, type='
     else:
         return newdf
 
+# easy pickles
+def get(name):
+    f=open(name, 'rb')
+    mod = pickle.load(f)
+    f.close()
+    return mod
+
+def put(path, obj):
+   f=open(path, 'wb')
+   pickle.dump(obj, f)
+   f.close()
+   return True
 
 # saving huge arrays without loss of precision or disk size constraint
 def save_array(fname, arr):

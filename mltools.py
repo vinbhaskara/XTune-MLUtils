@@ -3,7 +3,6 @@ Created on Nov 18, 2017
 
 @author: Vineeth_Bhaskara
 '''
-
 from __future__ import print_function
 import numpy as np
 import pandas as pd
@@ -14,12 +13,16 @@ import bcolz
 import cv2
 
 
-def RankAverager(valpreds, testpreds, predcol='pred'):
+def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     '''
     Expects <predcol> as the column for prediction values that need be ranked ascending wise - say Class 1. 
     Suitable for Binary class problems.
     Output ranks are displayed in column 'rank_avg_<predcol>' and 'rank_avg_<predcol>_proba' for Class 1.
-    You may repeat this per class proba column for multiclass problems, for example.
+    
+    scale_test_proba scales the rank averaged probabilities from 0 to 1 so the minimum is set 0 and the maximum
+    goes to 1 in the Test set. So it is very important to only use this iff your tests predictions have
+    a lot of rows. This is generally used in case you are going to average the output probs with some
+    other model later.
     
     Very efficient implementation! Uses Binary Search.
     '''
@@ -39,10 +42,18 @@ def RankAverager(valpreds, testpreds, predcol='pred'):
     
     rank_avgs = valpreds[predcol].searchsorted(testpreds[predcol]) + 1
     
-    testpreds['rankavg_'+predcol]  = rank_avgs    
-    testpreds['rankavg_'+predcol+'_proba']  = np.array(rank_avgs)/float(valpreds.shape[0]+1)
+    testpreds['rankavg_'+predcol]  = rank_avgs  
+    
+    if scale_test_proba:
+        proba = np.array(rank_avgs)/float(valpreds.shape[0]+1)        
+        proba = proba - np.min(proba)
+        proba = proba/np.max(proba)        
+        testpreds['rankavg_'+predcol+'_proba']  = proba
+    else:
+        testpreds['rankavg_'+predcol+'_proba']  = np.array(rank_avgs)/float(valpreds.shape[0]+1)
     
     return testpreds.copy() 
+    
 
 
 def gaussian_feature_importances(df, missing_value=-1, skip_columns=['id','target']):

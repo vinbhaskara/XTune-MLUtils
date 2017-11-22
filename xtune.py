@@ -615,13 +615,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                     fhist = open(save_folder+'/history/'+filename+'.hist', 'wb')
                     pickle.dump(hist, fhist)
                     fhist.close()
-                    
-                    fparam = open(save_folder+'/param/'+filename+'.param', 'wb')
-                    pickle.dump(param, fparam)
-                    fparam.close()
-                    
-
-                
+                                    
                 if val_pred is None:
                     if len(val_pred_fold.shape)==1: # for binary cases
                         val_pred=np.zeros((int(len(d_train.get_label().tolist())),))
@@ -641,9 +635,13 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                 continue
                 
         if save_models:
-            fname = save_prefix+'_'+'param'+str(counter)
+            fname = save_prefix+'_cv_'+'param'+str(counter)
             valpreddf = pd.DataFrame(val_pred)
             valpreddf.to_csv(save_folder+'/valpred/'+fname+'.validation')
+            
+            fparam = open(save_folder+'/param/'+fname+'.param', 'wb')
+            pickle.dump(param, fparam)
+            fparam.close()
 
         if is_eval_more_better:
             best_score_across_folds=max(best_ntree_score_folds)

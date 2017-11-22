@@ -97,6 +97,60 @@ def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     
     return testpreds.copy() 
     
+def preds_averager(preds, weights=None, type='AM'):
+    '''
+    preds is a list of predictions from predictors(numpy) taken directly from 
+    predict methods of classifiers.
+    
+    AM - Arithmetic Mean
+    GM - Geometric Mean
+    HM - Harmonic Mean (weights not supported yet)
+    
+    No renormalization of preds is done.
+    '''
+    
+    if weights is None:
+        weights = np.ones((5,), dtype=np.int)
+    
+    if len(preds) == 1:
+        return preds[0]
+    elif len(preds) == 0:
+        return None
+    
+    ans = []
+    if type=='AM':
+        ans = preds[0]*weights[0]
+        counter = 1
+        for i in preds[1:]:
+            ans = ans + i*weights[counter]
+            counter += 1
+        
+        ans = ans/float(sum(weights))
+        
+    if type=='GM':
+        weights = np.array(weights)
+        weights = weights / np.sum(weights)
+        
+        ans = preds[0]**weights[0]
+        counter = 1
+        for i in preds[1:]:
+            ans = ans*(i**weights[counter])
+            counter +=1
+        
+        
+    if type== 'HM': # no weights supported currently
+        
+        invans = 1.0/preds[0]
+        counter = 1
+        for i in preds[1:]:
+            invans = invans + 1.0/i
+            counter+=1
+        ans = float(len(preds))/invans
+    
+    
+    return ans
+    
+    
 def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False, niters=1000, 
                     metric=['logloss','gini','auc'], is_more_better=True, coarseness=10, custom_weight_functions=[np.exp]):
     '''

@@ -16,6 +16,46 @@ from xtune import *
 from sklearn.metrics import roc_auc_score, log_loss
 
 
+def doOneHot(df1, ranges):
+    '''
+    Ready made column one hot function. Use for categorical features especially when using tree based classifiers.
+    Pass in the ranges in the format list of list [[column_name, range_list],...]
+    Pass in the df.    
+    '''
+    df = df1.copy() 
+    catcolumns = [i[0] for i in ranges]
+    print('Original shape: ', df.shape)
+    dummydf = df.head(1).copy()   
+    dummydf_full = None
+    
+    for i in ranges:
+        for j in i[1]:
+            dummydf[i[0]] = j
+            if dummydf_full is None:
+                dummydf_full = dummydf.copy()
+            else:
+                dummydf_full = dummydf_full.append(dummydf.copy())
+
+    
+    #dummydf_full = pd.DataFrame(dummyrows)
+    #dummydf_full.columns = df.columns
+    print('Dummy rows shape: ', dummydf_full.shape)
+    print('One Hotting...')
+    
+    df['type'] = 'data'
+    dummydf_full['type'] = 'dummy'
+    dfappended = df.append(dummydf_full)
+    
+    dfonehot = pd.get_dummies(dfappended, columns=catcolumns)
+    
+    finaldf = dfonehot[(dfonehot['type']=='data')]
+    
+    del finaldf['type']
+    print('One hot done. New shape: ', finaldf.shape)
+    
+    return finaldf.copy() 
+    
+    
 def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     '''
     Expects <predcol> as the column for prediction values that need be ranked ascending wise - say Class 1. 

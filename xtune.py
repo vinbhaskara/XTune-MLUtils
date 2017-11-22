@@ -739,25 +739,30 @@ def getModelPoolStats(modelpool_dirs=['./model_pool'], metric=['auc','gini','bin
             rec.append(f.split('.')[0])
             
             for m in metric:
-                if m not in hist['val'].keys():
-                    continue
+
                 if first:
                     columns.append('val-'+m)
                     
-                if 'loss' in m:
-                    rec.append(min(hist['val'][m]))
+                if m not in hist['val'].keys():
+                    rec.append('-')
                 else:
-                    rec.append(max(hist['val'][m]))
+                    
+                    if 'loss' in m:
+                        rec.append(min(hist['val'][m]))
+                    else:
+                        rec.append(max(hist['val'][m]))
                 
             for m in metric:
-                if m not in hist['train'].keys():
-                    continue
+
                 if first:
-                    columns.append('tr-'+m)  
-                if 'loss' in m:
-                    rec.append(min(hist['train'][m]))
+                    columns.append('tr-'+m) 
+                if m not in hist['train'].keys():
+                    rec.append('-')
                 else:
-                    rec.append(max(hist['train'][m])) 
+                    if 'loss' in m:
+                        rec.append(min(hist['train'][m]))
+                    else:
+                        rec.append(max(hist['train'][m])) 
             if first:
                 columns.append('param')
             rec.append(param)

@@ -14,8 +14,8 @@ from mltools import *
 '''
 TODOS -
 Caliberating the predictions
-Gaussian optimization of the parameters 
-MP support across param grid
+Bayesian optimization of the parameters (Check https://www.kaggle.com/tilii7/bayesian-optimization-of-xgboost-parameters)
+MP support across param grid (new branch created)
 '''
 
 class Logger(object):

@@ -41,7 +41,10 @@ def target_encode(trn_series=None, tst_series=None, target=None, in_samples_leaf
                                             smoothing=10,
                                             noise_level=0) 
     
-    
+    min_samples_leaf define a threshold where prior and target mean (for a given category value) have the same weight. 
+    Below the threshold prior becomes more important and above mean becomes more important.
+
+    How weight behaves against value counts is controlled by smoothing parameter
     
     Smoothing is computed like in the following paper by Daniele Micci-Barreca
     https://kaggle2.blob.core.windows.net/forum-message-attachments/225952/7441/high%20cardinality%20categoricals.pdf

@@ -17,6 +17,7 @@ from sklearn.metrics import roc_auc_score, log_loss
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
 def normalizedf(df):
     '''
     Normalizes dataframe columns to 1. Send in slice of those columns
@@ -24,6 +25,7 @@ def normalizedf(df):
     '''
     df = df.div(df.sum(axis=1), axis=0)
     return df
+    
     
 def dfcorrelationsplot(df):
     '''
@@ -87,27 +89,36 @@ def target_encode(trn_series=None, tst_series=None, target=None, min_samples_lea
     min_samples_leaf (int) : minimum samples to take category average into account
     smoothing (int) : smoothing effect to balance categorical average vs prior
     """
+    
     def add_noise(series, noise_level):
         return series * (1 + noise_level * np.random.randn(len(series)))
+        
     
     assert len(trn_series) == len(target)
     assert trn_series.name == tst_series.name
+    
     temp = pd.concat([trn_series, target], axis=1)
+    
     # Compute target mean
     averages = temp.groupby(by=trn_series.name)[target.name].agg(["mean", "count"])
+    
     # Compute smoothing
     smoothing = 1 / (1 + np.exp(-(averages["count"] - min_samples_leaf) / smoothing))
+    
     # Apply average function to all target data
     prior = target.mean()
+    
     # The bigger the count the less full_avg is taken into account
     averages[target.name] = prior * (1 - smoothing) + averages["mean"] * smoothing
     averages.drop(["mean", "count"], axis=1, inplace=True)
+    
     # Apply averages to trn and tst series
     ft_trn_series = pd.merge(
         trn_series.to_frame(trn_series.name),
         averages.reset_index().rename(columns={'index': target.name, target.name: 'average'}),
         on=trn_series.name,
         how='left')['average'].rename(trn_series.name + '_mean').fillna(prior)
+        
     # pd.merge does not keep the index so restore it
     ft_trn_series.index = trn_series.index
     ft_tst_series = pd.merge(
@@ -115,6 +126,7 @@ def target_encode(trn_series=None, tst_series=None, target=None, min_samples_lea
         averages.reset_index().rename(columns={'index': target.name, target.name: 'average'}),
         on=tst_series.name,
         how='left')['average'].rename(trn_series.name + '_mean').fillna(prior)
+        
     # pd.merge does not keep the index so restore it
     ft_tst_series.index = tst_series.index
     
@@ -203,20 +215,39 @@ def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     
     return testpreds.copy() 
     
-def preds_averager(preds, weights=None, type='AM'):
+def preds_averager(preds, weights=None, type='AM', convert_to_ranks=False, normalize=True):
     '''
     preds is a list of predictions from predictors(numpy) taken directly from 
-    predict methods of classifiers.
+    predict methods of classifiers. that is they should contain only the prediction numpy columns.
     
     AM - Arithmetic Mean
     GM - Geometric Mean
-    HM - Harmonic Mean (weights not supported yet)
+    HM - Harmonic Mean 
     
-    No renormalization of preds is done.
+    convert_to_ranks: Converts the predictions into ranks per prediction array in the preds list.
+    So, obvly, this doesnt make sense when predicting one by one. But when predictin in bulk at once (eg. Public LB of Kaggle),
+    you may try this to kinda overfit LB in some sense! In fact, such an ensemble of 4 models in Porto Seguro gave
+    top Public LB (Private not guaranteed!).
+    
+    Normalization of preds is done.
     '''
-    
+   
     if weights is None:
-        weights = np.ones((5,), dtype=np.int)
+        weights = np.ones((5,), dtype=np.float)
+        
+    if convert_to_ranks:
+        preds_new = []
+        for i in preds:
+            df = pd.DataFrame(i)
+            df = df.rank()/ df.shape[0]
+            
+            if normalize:
+                if df.shape[1]>1: # if more than one prediction column
+                    df = normalizedf(df)
+            
+            preds_new.append(df.values)
+        
+        preds = preds_new
     
     if len(preds) == 1:
         return preds[0]
@@ -246,14 +277,18 @@ def preds_averager(preds, weights=None, type='AM'):
         
     if type== 'HM': # no weights supported currently
         
-        invans = 1.0/preds[0]
+        invans = float(weights[0])/preds[0]
         counter = 1
         for i in preds[1:]:
-            invans = invans + 1.0/i
+            invans = invans + float(weights[counter])/i
             counter+=1
-        ans = float(len(preds))/invans
+        ans = (float(sum(weights))*float(len(preds)))/invans
     
-    
+    ans = pd.DataFrame(ans)
+    if normalize:
+        if ans.shape[1]>1: # as if = 1 then all preds will be 1!
+            ans = normalizedf(ans)
+    ans = ans.values
     return ans
     
     
@@ -474,7 +509,10 @@ def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False,
             
             goodweights12 = None 
             goodeval = None
-            for weight1 in np.arange(0, 1, 1.0/coarseness)[::-1]:
+            
+            nprange = np.arange(0, 1, 1.0/coarseness)[::-1]
+            nprange = np.append(1.0, nprange)
+            for weight1 in :
                 
                 weights12 = [weight1, 1.0-weight1]
                 metric_labels, metric_results = calcMetrics([df1, df2], weights12, silent=True)

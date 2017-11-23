@@ -515,7 +515,7 @@ def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False,
             
             nprange = np.arange(0, 1, 1.0/coarseness)[::-1]
             nprange = np.append(1.0, nprange)
-            for weight1 in :
+            for weight1 in nprange:
                 
                 weights12 = [weight1, 1.0-weight1]
                 metric_labels, metric_results = calcMetrics([df1, df2], weights12, silent=True)

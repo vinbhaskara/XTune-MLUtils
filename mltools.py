@@ -24,11 +24,16 @@ def normalizedf(df):
     return df
     
 # Dealing with categorical features Way 1
-def target_encode(trn_series=None, tst_series=None, target=None, in_samples_leaf=1,
+def target_encode(trn_series=None, tst_series=None, target=None, min_samples_leaf=1,
                   smoothing=1, noise_level=0):
     """
     Target Encoding for Categorical Features! An alternative to OneHot Encoding. But with a risk of GT leakage.
     This converts Categorical to Numerical fields.
+    
+    Tested this on Binary class problem with class 0 and 1. 
+    Use min_samples_leaf as the minimum number of Class 1 samples to be present for that categorical field group-byed.
+    More is the min_samples_leaf, more will be the weight of the cat col mean assuming that Class 0 is more more dominant than Class 1 (imbalance dataset)
+    so that having Class 1 values more is "good" weight.
     
     Usage:
     Example - Do Column by Column
@@ -92,7 +97,7 @@ def target_encode(trn_series=None, tst_series=None, target=None, in_samples_leaf
 def doOneHot(df1, ranges):
     '''
     Ready made column one hot function. Use for categorical features especially when using tree based classifiers.
-    Pass in the ranges in the format list of list [[column_name, range_list],...]
+    Pass in the ranges in the format list of list [[column_name, range_list],...] - this should be across the train+test set, mind you.
     Pass in the df.    
     '''
     df = df1.copy() 

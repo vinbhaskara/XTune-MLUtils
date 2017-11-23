@@ -14,6 +14,8 @@ import cv2
 import random
 from xtune import *
 from sklearn.metrics import roc_auc_score, log_loss
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def normalizedf(df):
     '''
@@ -22,6 +24,32 @@ def normalizedf(df):
     '''
     df = df.div(df.sum(axis=1), axis=0)
     return df
+    
+def dfcorrelationsplot(df):
+    '''
+    Just using the simple df.corr() of pandas in addition to ready made easy plot
+    for visualizing feature correlations
+    
+    df: send in the features+target columns only
+    '''
+    sns.set(style="white")
+    
+    # Compute the correlation matrix
+    corr = df.corr()
+    
+    # Set up the matplotlib figure
+    f, ax = plt.subplots(figsize=(11, 9))
+    
+    # Generate a custom diverging colormap
+    cmap = sns.diverging_palette(220, 10, as_cmap=True)
+    
+    # Draw the heatmap with the mask and correct aspect ratio
+    sns.heatmap(corr, cmap=cmap, vmax=.3, center=0,
+                square=True, linewidths=.5, cbar_kws={"shrink": .5})
+    
+    plt.show()
+    return corr
+
     
 # Dealing with categorical features Way 1
 def target_encode(trn_series=None, tst_series=None, target=None, min_samples_leaf=1,

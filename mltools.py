@@ -17,6 +17,9 @@ from sklearn.metrics import roc_auc_score, log_loss
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# TODO:
+# Added HM, GM based weights desperateFitter
+
 
 def normalizedf(df):
     '''
@@ -275,7 +278,7 @@ def preds_averager(preds, weights=None, type='AM', convert_to_ranks=False, norma
             counter +=1
         
         
-    if type== 'HM': # no weights supported currently
+    if type== 'HM': 
         
         invans = float(weights[0])/preds[0]
         counter = 1

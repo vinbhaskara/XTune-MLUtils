@@ -307,7 +307,8 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
         2) params: dictionary with list of possible values for a parameter as keys
                    Example params:
                     params_xgb_default_dict={
-                        'booster':['gbtree'],
+                        'booster':['gbtree', 'gblinear'],
+                        'tree_method':['hist','exact'],
                         'silent':[0], 
                         'num_estimators':[1000],
                         'early_stopping':[5],
@@ -321,7 +322,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                         'lambda':[1e-05],
                         'subsample':[0.8],
                         'colsample_bytree':[0.8],
-                        'num_class':[2],
+                        'num_class':[2, 4, 6, 8, 10, 12],
                         'feval':['xgb_auc'], # feval overrides eval_metric for early stopping. You may pass custom functions too.
                         'maximize_feval': [True],
                         'tree_method':['exact', 'hist']

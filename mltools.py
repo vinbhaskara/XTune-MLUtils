@@ -236,7 +236,7 @@ def preds_averager(preds, weights=None, type='AM', convert_to_ranks=False, norma
     '''
    
     if weights is None:
-        weights = np.ones((5,), dtype=np.float)
+        weights = np.ones((len(preds),), dtype=np.float)
         
     if convert_to_ranks:
         preds_new = []

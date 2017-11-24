@@ -284,7 +284,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
     return model, history_dict.copy()
 
 
-def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter=None, rand_state=None, isCV=True, 
+def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter=None, rand_state=28081994, isCV=True, 
               folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='',save_folder='./model_pool', limit_complexity=None, logfile=None, boosting_alg='xgb'):
     '''       
 

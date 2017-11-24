@@ -162,7 +162,7 @@ def gcRefresh():
 
 
 def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, boosting_alg='xgb', 
-           logfile='logfile',  lgb_categorical_feats='auto', lgb_learning_rates=None):
+           logfile=None,  lgb_categorical_feats='auto', lgb_learning_rates=None):
     '''
     Usage:
         1) d_train: xgb/lgb DMatrix of Train data (if lgb, preferably use free_raw_data=False while constructing,
@@ -216,8 +216,9 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
         print('No param passed. Check an example: ', xtrain.__doc__)
         sys.exit()
         
-    stdout_backup = sys.stdout
-    sys.stdout = Logger(logfile)
+    if logfile is not None:
+        stdout_backup = sys.stdout
+        sys.stdout = Logger(logfile)
 
     param_xgb = param.copy() 
 
@@ -278,13 +279,13 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
                        early_stopping_rounds=param_xgb['early_stopping'],
                        evals_result=history_dict, verbose_eval=verbose_eval,
                        learning_rates=lgb_learning_rates)
-             
-    sys.stdout=stdout_backup
+    if logfile is not None:        
+        sys.stdout=stdout_backup
     return model, history_dict.copy()
 
 
 def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter=None, rand_state=None, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='',save_folder='./model_pool', limit_complexity=None, logfile='logfile', boosting_alg='xgb'):
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='',save_folder='./model_pool', limit_complexity=None, logfile=None, boosting_alg='xgb'):
     '''       
 
     Usage:
@@ -385,9 +386,9 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
     if boosting_alg=='lgb' and lgb_raw_train is None:
         print('Please set lgb_raw_train before continuing.')
         sys.exit()
-        
-    stdout_backup=sys.stdout
-    sys.stdout=Logger(logfile)
+    if logfile is not None:
+        stdout_backup=sys.stdout
+        sys.stdout=Logger(logfile)
     
     best_param=None
     best_eval=None
@@ -725,8 +726,8 @@ best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
     results_dict['all_param_scores'] = all_param_scores
     results_dict['train_indices'] = train_indices
     results_dict['holdout_indices'] = holdout_indices
-    
-    sys.stdout=stdout_backup
+    if logfile is not None:
+        sys.stdout=stdout_backup
     return results_dict
     
 def getModelPoolStats(modelpool_dirs=['./model_pool'], metric=['auc','gini','binary_logloss','kaglloss']):

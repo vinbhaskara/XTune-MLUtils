@@ -146,10 +146,18 @@ def xPredict( model, d_pred, boosting_alg='xgb', lgb_best_iteration=-1):
     '''
     Simple xgb/lgb Predict alternative with best_iteration implementation
     to avoid silly mistakes.
+    
+    when lgb_best_iteration is -1 that means all trees. (this parameter exists because unlike
+    xgboost, lgb doesnt set model.best_iteration unless it is stopped by early stopping.
     '''
     
     if boosting_alg=='xgb':
-        return model.predict(d_pred, ntree_limit=model.best_ntree_limit)
+        try:
+            return model.predict(d_pred, ntree_limit=model.best_ntree_limit) # some problems occurred before with gblinear booster
+        except:
+            print('Getting error on trying ntree_limit. Proceeding with all trees.')
+            return model.predict(d_pred)
+        
     elif boosting_alg=='lgb':
         return model.predict(d_pred, num_iteration=lgb_best_iteration)
 

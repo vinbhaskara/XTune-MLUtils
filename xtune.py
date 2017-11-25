@@ -22,6 +22,8 @@ TODOS -
 Caliberating the predictions
 Bayesian optimization of the parameters (Check https://www.kaggle.com/tilii7/bayesian-optimization-of-xgboost-parameters)
 MP support across param grid (new branch created)
+Map os.listdir() to sorted(os.listdir())
+Modify xPredict. Check if best_iteration of lgb or best_ntree_limit are neither 0 or 1 and then use them without asking (give option to specify numtrees though but default only till best).
 '''
 
 class Logger(object):

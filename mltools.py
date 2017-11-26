@@ -570,8 +570,8 @@ def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False,
         # get the final thrust weights in the right order 
         final_thrust_weights_right_order = []
         
-        for i in model_priority:
-            final_thrust_weights_right_order.append(final_thrust_weights[i])        
+        for i in range(len(model_priority)):
+            final_thrust_weights_right_order.append(final_thrust_weights[model_priority.index(i)])        
         
         best_weights = final_thrust_weights_right_order
         

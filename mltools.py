@@ -605,16 +605,16 @@ def gaussian_feature_importances(df, missing_value=-1, skip_columns=['id','targe
         std1 = df[(df[i]!=missing_value) & (df['target']==1)][i].std()
         mean1 = df[(df[i]!=missing_value) & (df['target']==1)][i].mean()
         diff_mean = abs(mean1-mean0)
-        diff_std = abs(std1+std0) #abs(std1-std0) it should be summed not added as you need least variance together
+        sum_std = abs(std1+std0) #abs(std1-std0) it should be summed not added as you need least variance together
         try:
-            significance_measure = diff_mean/diff_std
+            significance_measure = diff_mean/sum_std
         except:
             significance_measure = None
         
-        results.append([i, mean0, std0, mean1, std1, diff_mean, diff_std, significance_measure])
+        results.append([i, mean0, std0, mean1, std1, diff_mean, sum_std, significance_measure])
         
     results = pd.DataFrame(results)
-    results.columns = 'col,mean0,std0,mean1,std1,diff_mean,diff_std,significance_measure'.split(',')
+    results.columns = 'col,mean0,std0,mean1,std1,diff_mean,sum_std,significance_measure'.split(',')
     
     return results.sort_values(by=['significance_measure', 'diff_mean'], ascending=False, kind='mergesort', na_position='first')
     

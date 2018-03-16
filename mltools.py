@@ -176,6 +176,178 @@ def doOneHot(df1, ranges):
     
     return finaldf.copy() 
     
+import hashlib
+    
+def hashfile(path, blocksize = 65536):
+    if mode=='binary':
+        afile = open(path, 'rb')
+    elif mode=='text':
+        afile = open(path, 'r')
+    hasher = hashlib.md5()
+    buf = afile.read(blocksize)
+    while len(buf) > 0:
+        hasher.update(buf)
+        buf = afile.read(blocksize)
+    afile.close()
+    return hasher.hexdigest()
+    
+
+# REMOVE CONTENT DUPLICATES 
+def findDup(parentFolder, listOfPaths=None, mode='binary'):
+    '''
+    Dups in format {hash:[names]}
+    
+    if you want to crawl into the parent folder give that. If you have a list of paths,
+    pass the list to the second argument. Second one overrides first one.
+    
+    mode: can be binary or text
+
+    ''' 
+    import os
+    import sys
+    
+    dups = {}
+    
+    if listOfPaths is None:
+        for dirName, subdirs, fileList in os.walk(parentFolder):
+            print('Scanning %s...' % dirName)
+            for filename in fileList:
+                # Get the path to the file
+                path = os.path.join(dirName, filename)
+                # Calculate hash
+                file_hash = hashfile(path)
+                # Add or append the file path
+                if file_hash in dups:
+                    dups[file_hash].append(path)
+                else:
+                    dups[file_hash] = [path]
+    else:
+        for path in listOfPaths:
+            # Calculate hash
+            file_hash = hashfile(path)
+            # Add or append the file path
+            if file_hash in dups:
+                dups[file_hash].append(path)
+            else:
+                dups[file_hash] = [path]
+            
+    return dups
+    
+    
+def histogram_equalize_data(data_array, inverse_transform=False, bins=None, 
+                            lossless=True, loss_sensitivity='1x', dont_touch_value=0, plot=False, dfhist=None,
+                            is_image_intensities=False):
+    import math, random
+    '''
+    Check https://en.wikipedia.org/wiki/Histogram_equalization
+    
+    This is generally mentioned in Image processing. But it should be of very much interest also to
+    apply the same technique to general arrays of data in a lossless manner, not necessarily only for images.
+    
+    Here is my implementation for that -    
+    
+    + data_array - expecting a 1D numpy array of flattened data input
+    + inverse_transform - the map is a 1-1 map from a equalized histogram back to the original one
+    if and only if lossless is True. Else, you will get back the values but a slight error of the 
+    order of the bin-size.
+    + bins - Number of bins. If none then this is equal to len of the input array
+    + lossless - if True, irrespective of what is bins passed, bins is set to len of input array
+    + loss_sensitivity - if loss sensitivity is Nx then the bins are chosen N*len of data array
+    + dont_touch_value - if this value is present in the input, that will not be changed and 
+    will remain the same value for the output. if this is None, then all may change
+    + if plot is True and if data_array is 2D
+    + dfhist - Pandas dataframe. Needed and cannot be None if using inverse_transform. 
+    This is same as the output mapping_df return value
+    + is_image_intensities - if True then bins used will be 255 
+    
+    Returns - 
+    
+    + new_data_array : Transformed data array according to requirements
+    + dfhist : dataframe is returned with data requried to map back - Needed if using inverse later.
+    
+    '''
+    if plot:
+        plt.figure()
+    if lossless or bins is None:
+        bins = len(data_array) * int(loss_sensitivity.split('x')[0])
+        if is_image_intensities:
+            bins=255
+        
+    mind = min(data_array)
+    maxd = max(data_array)
+    
+    bins = np.linspace(mind, maxd, bins+2) # fixed number of bins
+    
+    
+    plt.subplot(121)
+    plt.xlim([mind, maxd])
+    plot1 = plt.hist(data_array, bins=bins, alpha=0.5)
+    plt.title('Input Histogram')
+    plt.xlabel('Values')
+    plt.ylabel('count')
+    
+    
+    if not inverse_transform:
+    
+        dfhist = pd.DataFrame()
+        dfhist['inputbins'] = plot1[1][:-1]
+        dfhist['freq'] = plot1[0]
+        dfhist['freq_cumsum'] = dfhist['freq'].values.cumsum()
+        dfhist['normalized_cumsum'] = dfhist['freq_cumsum'].apply(lambda x: x/float(size*size))
+
+        dfhist['remap_values'] = mind + dfhist['normalized_cumsum']*float(maxd - mind)
+
+
+        # map the actual values back 
+        bins = dfhist['inputbins'].values
+        newvaluesoutput = dfhist.loc[np.digitize(data_array, bins)-1]['remap_values'].values
+
+        if dont_touch_value is not None:
+            newvaluesoutput[np.where(data_array == dont_touch_value)[0]]=dont_touch_value 
+            # keeping 0 values as 0 only 
+
+
+        
+        plt.subplot(122)
+        plt.xlim([mind, maxd])
+        plot1 = plt.hist(newvaluesoutput, bins=bins, alpha=0.5)
+        plt.title('Output Equalized Histogram')
+        plt.xlabel('Values')
+        plt.ylabel('count')
+
+
+        if plot:
+            plt.tight_layout()
+            plt.show()
+
+
+        return newvaluesoutput, dfhist.copy()
+
+
+    else: # inverse_transform
+        if dfhist is None:
+            raise        
+        
+        invbins = dfhist['remap_values'].values
+        
+        # for this case data_array is the equalized format
+        oldoutput = dfhist.loc[np.digitize(data_array, invbins)-1]['inputbins'].values
+        
+        plt.subplot(122)
+        plt.xlim([mind, maxd])
+        plot1 = plt.hist(oldoutput, bins=bins, alpha=0.5)
+        plt.title('Output Restored Histogram')
+        plt.xlabel('Values')
+        plt.ylabel('count')
+
+
+        if plot:
+            plt.tight_layout()
+            plt.show()
+        
+        
+        return oldoutput, dfhist.copy()  
+    
     
 def RankAverager(valpreds, testpreds, predcol='pred', scale_test_proba=False):
     '''

@@ -713,11 +713,10 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
             best_param_counter=counter
 
         print('Params: ',param, '\nCV Rounds: ', best_ntree_limit_folds, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
-        '\nStdDev CV score: ',stddev_eval,'\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds)
+        '\nStdDev CV score: ',stddev_eval,'\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds,'\n\nBest Param Yet was Serial Number #', best_param_counter)
         
 
-    print('\n')
-    print('Best Param Yet was Serial Number #', best_param_counter)
+    print('\n') 
     print('***********************************************************************')
     print('Final Results\n')
     print('Best Params: ',best_param, '\nParam Serial Number: ', best_param_counter,'\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nStdDev CV score: ',best_eval_stddev,'\nBest Fold: ', \

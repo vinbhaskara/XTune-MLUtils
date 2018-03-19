@@ -402,6 +402,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
         sys.stdout=Logger(logfile)
     
     best_param=None
+    best_param_counter=None
     best_eval=None
     all_param_scores=[]
     holdout_indices=[]
@@ -709,14 +710,17 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
             best_param_scores=all_param_scores[-1]
             best_cv_fold=best_fold
             best_eval_folds=best_ntree_score_folds
+            best_param_counter=counter
 
         print('Params: ',param, '\nCV Rounds: ', best_ntree_limit_folds, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
         '\nStdDev CV score: ',stddev_eval,'\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds)
+        
 
     print('\n')
+    print('Best Param Yet was Serial Number #', best_param_counter)
     print('***********************************************************************')
     print('Final Results\n')
-    print('Best Params: ',best_param, '\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nStdDev CV score: ',best_eval_stddev,'\nBest Fold: ', \
+    print('Best Params: ',best_param, '\nParam Serial Number: ', best_param_counter,'\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nStdDev CV score: ',best_eval_stddev,'\nBest Fold: ', \
 best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
 
 

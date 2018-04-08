@@ -519,8 +519,33 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
             if boosting_alg=='xgb':
                 val_pred = xPredict(model, d_holdout, boosting_alg)
                 
-                now_best_score = model.best_score #xgb
-                now_best_limit = model.best_ntree_limit
+                #now_best_score = model.best_score #xgb
+                #now_best_limit = model.best_ntree_limit
+                
+                metric_to_use = param['eval_metric']
+                if param['feval'] is not None:
+                    metric_to_use = param['feval']
+                    if 'auc' in metric_to_use:
+                        metric_to_use='auc'
+                #print(hist)
+
+                if str(type(metric_to_use)) == "<type 'list'>":
+                    metric_to_use=param['eval_metric'][-1]
+
+                val_pred_fold = xPredict(model, xgb_val_cv, boosting_alg)
+                if len(params['early_stopping'])==1 and params['early_stopping'][0] is None:
+                    if is_eval_more_better:
+                        now_best_score=max(hist['val'][metric_to_use])
+                        now_best_limit=hist['val'][metric_to_use].index(max(hist['val'][metric_to_use]))+1
+                    else:
+                        now_best_score=min(hist['val'][metric_to_use])
+                        now_best_limit=hist['val'][metric_to_use].index(min(hist['val'][metric_to_use]))+1
+                else:
+                    now_best_score = model.best_score #xgb
+                    now_best_limit = model.best_ntree_limit
+                
+                
+
             elif boosting_alg=='lgb':
                 
                 metric_to_use = param['metric']
@@ -596,10 +621,27 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                 model, hist = xTrain(xgb_train_cv, param, xgb_val_cv, verbose_eval=verbose_eval, logfile=logfile, boosting_alg=boosting_alg)
 
                 if boosting_alg=='xgb':
+                    metric_to_use = param['eval_metric']
+                    if param['feval'] is not None:
+                        metric_to_use = param['feval']
+                        if 'auc' in metric_to_use:
+                            metric_to_use='auc'
+                    #print(hist)
+
+                    if str(type(metric_to_use)) == "<type 'list'>":
+                        metric_to_use=param['eval_metric'][-1]
+                        
                     val_pred_fold = xPredict(model, xgb_val_cv, boosting_alg)
-                    
-                    now_best_score = model.best_score #xgb
-                    now_best_limit = model.best_ntree_limit
+                    if len(params['early_stopping'])==1 and params['early_stopping'][0] is None:
+                        if is_eval_more_better:
+                            now_best_score=max(hist['val'][metric_to_use])
+                            now_best_limit=hist['val'][metric_to_use].index(max(hist['val'][metric_to_use]))+1
+                        else:
+                            now_best_score=min(hist['val'][metric_to_use])
+                            now_best_limit=hist['val'][metric_to_use].index(min(hist['val'][metric_to_use]))+1
+                    else:
+                        now_best_score = model.best_score #xgb
+                        now_best_limit = model.best_ntree_limit
                 elif boosting_alg=='lgb':
                    
                     metric_to_use = param['metric']
@@ -711,6 +753,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
             best_cv_fold=best_fold
             best_eval_folds=best_ntree_score_folds
             best_param_counter=counter
+            best_cv_rounds_cv = best_ntree_limit_folds
 
         print('Params: ',param, '\nCV Rounds: ', best_ntree_limit_folds, '\nCV Scores: ', best_ntree_score_folds, ' \nAvg CV Score: ', sum(best_ntree_score_folds)/float(len(best_ntree_score_folds)), \
         '\nStdDev CV score: ',stddev_eval,'\nBest Fold: ', best_fold, '\nNumTreesForBestFold: ', best_ntree_limit_across_folds,'\n\nBest Param Yet was Serial Number #', best_param_counter)
@@ -719,7 +762,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
     print('\n') 
     print('***********************************************************************')
     print('Final Results\n')
-    print('Best Params: ',best_param, '\nParam Serial Number: ', best_param_counter,'\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nStdDev CV score: ',best_eval_stddev,'\nBest Fold: ', \
+    print('Best Params: ',best_param, '\nParam Serial Number: ', best_param_counter,'\nCV Rounds: ', best_cv_rounds_cv,'\nCV Scores: ', best_eval_folds, ' \nAvg CV Score: ', best_eval, '\nStdDev CV score: ',best_eval_stddev,'\nBest Fold: ', \
 best_cv_fold, '\nNumTreesForBestFold: ', best_ntree_limit)
 
 

@@ -144,7 +144,7 @@ def xgb_auc(pred, d_eval):
     return [('kaglloss', multiclass_log_loss(np.array(obs_onehot).astype(float), pred)), ('auc', roc_auc_score(np.array(obs_onehot).astype(float), pred))]
     
     
-def xPredict( model, d_pred, boosting_alg='xgb', lgb_best_iteration=-1):
+def xPredict( model, d_pred, boosting_alg='xgb', lgb_best_iteration=-1, usealltreestopredict=False):
     '''
     Simple xgb/lgb Predict alternative with best_iteration implementation
     to avoid silly mistakes.
@@ -154,8 +154,16 @@ def xPredict( model, d_pred, boosting_alg='xgb', lgb_best_iteration=-1):
     '''
     
     if boosting_alg=='xgb':
+        if usealltreestopredict:
+            ntree_limit = 0 # default to make sure all tree are used
+        else:
+            try:
+                ntree_limit = model.best_ntree_limit
+            except:
+                print('Getting error on trying ntree_limit. Proceeding with all trees.')
+                ntree_limit = 0
         try:
-            return model.predict(d_pred, ntree_limit=model.best_ntree_limit) # some problems occurred before with gblinear booster
+            return model.predict(d_pred, ntree_limit=ntree_limit) # some problems occurred before with gblinear booster
         except:
             print('Getting error on trying ntree_limit. Proceeding with all trees.')
             return model.predict(d_pred)
@@ -295,7 +303,7 @@ def xTrain( d_train, param, val_data=None, prev_model=None, verbose_eval=True, b
 
 
 def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter=None, rand_state=28081994, isCV=True, 
-              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='',save_folder='./model_pool', limit_complexity=None, logfile=None, boosting_alg='xgb'):
+              folds=5, d_holdout=None, verbose_eval=True, save_models=False, skip_param_if_same_eval=False, save_prefix='',save_folder='./model_pool', limit_complexity=None, logfile=None, boosting_alg='xgb', usealltreestopredict=False):
     '''       
 
     Usage:
@@ -377,6 +385,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
         13) limit_complexity: Very useful function when trying to find the best model in a hyperparameter search with less number of rounds for fast decisions. Complexity is defined as max_depth*num_estimators. If limit_complexity is provided, then the num_estimators will be determined from the max_depth by num_estimators=limit_complexity/max_depth so that the hyperparam searching is fair. (Eg. Think of optimizing max_depth=[1,2] with 5 rounds. Obvly, that is unfair, as the later is more complex than former).
         14) skip_param_if_same_eval: This option saves the model while iterating only if the eval metric value for that parameter results in a number that has already not resulted previously (eg. some iterations over regularizations alone produce the exact same result). In case of CV folds, all 1st folds' eval is maintained, and if current matches that, remaining rounds are skipped saving time. (Also useful while ensembling a population of models for Kaggle).
         15) logfile: specify a logfile to also print to file in addition to stdout, for example, for logging status even while Jupyter screen is closed.
+        16) usealltreestopredict: Specifically mention to not use the best ntree limit
     Note 1:
         If isCV is True does Cross Validation (Stratified) for folds times over d_train data.
         If isCV is False, then does a holdout by taking the d_holdout data.
@@ -517,7 +526,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
             
             
             if boosting_alg=='xgb':
-                val_pred = xPredict(model, d_holdout, boosting_alg)
+                val_pred = xPredict(model, d_holdout, boosting_alg,usealltreestopredict=usealltreestopredict)
                 
                 #now_best_score = model.best_score #xgb
                 #now_best_limit = model.best_ntree_limit
@@ -532,7 +541,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                 if str(type(metric_to_use)) == "<type 'list'>":
                     metric_to_use=param['eval_metric'][-1]
 
-            
+                
                 if len(params['early_stopping'])==1 and params['early_stopping'][0] is None:
                     if is_eval_more_better:
                         now_best_score=max(hist['val'][metric_to_use])
@@ -559,7 +568,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                     now_best_score = min(hist['val'][metric_to_use])
 
                 now_best_limit = hist['val'][metric_to_use].index(now_best_score) + 1
-                val_pred = xPredict(model, x_holdout, boosting_alg, lgb_best_iteration=now_best_limit)
+                val_pred = xPredict(model, x_holdout, boosting_alg, lgb_best_iteration=now_best_limit,usealltreestopredict=usealltreestopredict)
                 
             if skip_param_if_same_eval:
                 if now_best_score in model_first_fold_eval:
@@ -631,7 +640,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                     if str(type(metric_to_use)) == "<type 'list'>":
                         metric_to_use=param['eval_metric'][-1]
                         
-                    val_pred_fold = xPredict(model, xgb_val_cv, boosting_alg)
+                    val_pred_fold = xPredict(model, xgb_val_cv, boosting_alg, usealltreestopredict=usealltreestopredict)
                     if len(params['early_stopping'])==1 and params['early_stopping'][0] is None:
                         if is_eval_more_better:
                             now_best_score=max(hist['val'][metric_to_use])
@@ -655,7 +664,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                         now_best_score = min(hist['val'][metric_to_use])
 
                     now_best_limit = hist['val'][metric_to_use].index(now_best_score) + 1                    
-                    val_pred_fold = xPredict(model, x_val_cv, boosting_alg, lgb_best_iteration=now_best_limit)
+                    val_pred_fold = xPredict(model, x_val_cv, boosting_alg, lgb_best_iteration=now_best_limit, usealltreestopredict=usealltreestopredict)
                     
                
                 if foldcounter == 1:

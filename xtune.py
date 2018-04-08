@@ -532,7 +532,7 @@ def xGridSearch( d_train, params, lgb_raw_train=None, randomized=False, num_iter
                 if str(type(metric_to_use)) == "<type 'list'>":
                     metric_to_use=param['eval_metric'][-1]
 
-                val_pred_fold = xPredict(model, xgb_val_cv, boosting_alg)
+            
                 if len(params['early_stopping'])==1 and params['early_stopping'][0] is None:
                     if is_eval_more_better:
                         now_best_score=max(hist['val'][metric_to_use])

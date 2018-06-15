@@ -178,12 +178,18 @@ def doOneHot(df1, ranges):
     
 import hashlib
     
-def hashfile(path, blocksize = 65536):
+def hashfile(path, blocksize = 65536, mode='binary', alg='sha256'):
     if mode=='binary':
         afile = open(path, 'rb')
     elif mode=='text':
         afile = open(path, 'r')
-    hasher = hashlib.md5()
+    if alg=='md5':
+        hasher = hashlib.md5()
+    elif alg == 'sha256':
+        hasher = hashlib.sha256()
+    else:
+        print('Bad algorithm.')
+        return
     buf = afile.read(blocksize)
     while len(buf) > 0:
         hasher.update(buf)

@@ -785,7 +785,7 @@ def gaussian_feature_importances(df, missing_value=-1, skip_columns=['id','targe
         diff_mean = abs(mean1-mean0)
         sum_std = abs(std1+std0) #abs(std1-std0) it should be summed not added as you need least variance together
         try:
-            significance_measure = diff_mean/sum_std
+            significance_measure = diff_mean/(sum_std * 0.5)
         except:
             significance_measure = None
         

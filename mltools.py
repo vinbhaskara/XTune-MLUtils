@@ -28,9 +28,10 @@ def plot_confusion_matrix(y_true, y_pred,
                           cutoff=None,
                           title='Confusion matrix',
                           cmap=None,
-                          normalize=True):
+                          normalize=True,
+                          plt_show=True):
     """
-    given a sklearn confusion matrix (cm), make a nice plot
+    No more confusion in plotting the SKLearn's bland Confusion Matrix!
 
     Arguments
     ---------
@@ -93,7 +94,8 @@ def plot_confusion_matrix(y_true, y_pred,
                     done=True
                     break
             if not done:
-                y_pred_labels.append(i) # predict as the last label if none of the cutoffs match       
+                y_pred_labels.append(i) # predict as the last label if none of the cutoffs match
+                
         
         y_pred = y_pred_labels
     
@@ -101,7 +103,7 @@ def plot_confusion_matrix(y_true, y_pred,
     labels = target_names_map.keys()
     
     cm = confusion_matrix(y_true, y_pred, labels=labels)
-    
+
     accuracy = np.trace(cm) / float(np.sum(cm))
     misclass = 1 - accuracy
 
@@ -133,11 +135,22 @@ def plot_confusion_matrix(y_true, y_pred,
                      horizontalalignment="center",
                      color="white" if cm[i, j] > thresh else "black")
 
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label\naccuracy={:0.4f}; misclass={:0.4f}'.format(accuracy, misclass))
-    plt.show()
+    if plt_show:
+        plt.tight_layout()
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label\naccuracy={:0.4f}; misclass={:0.4f}'.format(accuracy, misclass))
+        plt.show()
+    else:
+        plt.close()
+        
+    if len(target_names_map.keys()) == 2:
+        prec = cm[1][1]/(cm[1][1] + cm[0][1])
+        recall = cm[1][1]/(cm[1][1] + cm[1][0])
+        f1 = 2.0 * prec * recall / (prec + recall)
+    
+        return cm, prec, recall, f1
+    
+    return cm
     
 def normalizedf(df):
     '''

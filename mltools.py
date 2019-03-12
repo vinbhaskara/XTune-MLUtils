@@ -42,13 +42,12 @@ def plot_confusion_matrix(y_true, y_pred,
     Estimated targets as returned by a classifier.
 
     target_names_map: given classification classes mapped to
-                  the class names, for example: {0:'high', 1:'medium', 2:'low'}
+                  the class names, for example: {0:'survive', 1:'death'}
     
-    cutoff:       if cutoff is None, then y_pred is expected to be prediction classes
+    cutoff:     if cutoff is None, then y_pred is expected to be prediction classes
                 but not probabilities. Specify a cutoff then you can send in probabs for y_pred. 
-                Of course, y_true must always be class labels! Example: {0:0.5, 1:0.3, 2:0.2} this means that
-                if y_pred for class 1 is > 0.3 then it will be classified as class 1. Precedence is 0 to num_classes.
-                For binary cases, use {0:1-p, 1:p} where p is the cutoff you want to be consistent.
+                (y_true must always be class labels though.) Example: 0.5 this means that
+                if y_pred for class 1 is > 0.5 then it will be classified as class 1. Valid for Binary classes. 
 
     title:        the text to display at the top of the matrix
 
@@ -64,7 +63,7 @@ def plot_confusion_matrix(y_true, y_pred,
     p=0.1
     plot_confusion_matrix(df_test['label'].values.tolist(), val_pred, 
                               target_names_map={0:'survive', 1:'death'},
-                              cutoff={0:1-p, 1:p},
+                              cutoff=p,
                               title='Confusion matrix',
                               cmap=None,
                               normalize=False)
@@ -78,24 +77,17 @@ def plot_confusion_matrix(y_true, y_pred,
         y_pred_labels = []
         
         for pred in y_pred:
-            done = False
-            for i in range(len(target_names_map.keys())):
-                probab = None
-                try: 
-                    probab = pred[i]
-                except:
-                    try:
-                        probab = pred[0]
-                    except:
-                        probab = pred
+            
+            probab = None
+            try: 
+                probab = pred[1]
+            except:
+                probab = pred
 
-                if probab > cutoff[i]:
-                    y_pred_labels.append(i)
-                    done=True
-                    break
-            if not done:
-                y_pred_labels.append(i) # predict as the last label if none of the cutoffs match
-                
+            if probab > cutoff:
+                y_pred_labels.append(1)
+            else:
+                y_pred_labels.append(0)
         
         y_pred = y_pred_labels
     

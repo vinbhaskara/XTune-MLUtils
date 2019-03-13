@@ -28,19 +28,16 @@ def plot_confusion_matrix(y_true, y_pred,
                           cutoff=None,
                           title='Confusion matrix',
                           cmap=None,
-                          normalize=True,
+                          normalize=False,
                           plt_show=True):
     """
     No more confusion in plotting the SKLearn's bland Confusion Matrix!
-
     Arguments
     ---------
     y_true : array, shape = [n_samples]
     Ground truth (correct) target values.
-
     y_pred : array, shape = [n_samples]
     Estimated targets as returned by a classifier.
-
     target_names_map: given classification classes mapped to
                   the class names, for example: {0:'survive', 1:'death'}
     
@@ -48,16 +45,12 @@ def plot_confusion_matrix(y_true, y_pred,
                 but not probabilities. Specify a cutoff then you can send in probabs for y_pred. 
                 (y_true must always be class labels though.) Example: 0.5 this means that
                 if y_pred for class 1 is > 0.5 then it will be classified as class 1. Valid for Binary classes. 
-
     title:        the text to display at the top of the matrix
-
     cmap:         the gradient of the values displayed from matplotlib.pyplot.cm
                   see http://matplotlib.org/examples/color/colormaps_reference.html
                   plt.get_cmap('jet') or plt.cm.Blues
-
     normalize:    If False, plot the raw numbers
                   If True, plot the proportions
-
     Usage
     -----
     p=0.1
@@ -67,11 +60,9 @@ def plot_confusion_matrix(y_true, y_pred,
                               title='Confusion matrix',
                               cmap=None,
                               normalize=False)
-
     Citiation
     ---------
     http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
-
     """
     if cutoff is not None:
         y_pred_labels = []
@@ -82,7 +73,10 @@ def plot_confusion_matrix(y_true, y_pred,
             try: 
                 probab = pred[1]
             except:
-                probab = pred
+                if isinstance(pred, int):
+                    probab = pred
+                else:
+                    raise
 
             if probab > cutoff:
                 y_pred_labels.append(1)
@@ -111,10 +105,14 @@ def plot_confusion_matrix(y_true, y_pred,
         tick_marks = np.arange(len(target_names))
         plt.xticks(tick_marks, target_names, rotation=45)
         plt.yticks(tick_marks, target_names)
+        
+    if len(target_names_map.keys()) == 2:
+        prec = cm[1][1]/float(cm[1][1] + cm[0][1])
+        recall = cm[1][1]/float(cm[1][1] + cm[1][0])
+        f1 = 2.0 * prec * recall / float(prec + recall)
 
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
 
     thresh = cm.max() / 1.5 if normalize else cm.max() / 2
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
@@ -136,10 +134,6 @@ def plot_confusion_matrix(y_true, y_pred,
         plt.close()
         
     if len(target_names_map.keys()) == 2:
-        prec = cm[1][1]/(cm[1][1] + cm[0][1])
-        recall = cm[1][1]/(cm[1][1] + cm[1][0])
-        f1 = 2.0 * prec * recall / (prec + recall)
-    
         return cm, prec, recall, f1
     
     return cm

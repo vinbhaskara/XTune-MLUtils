@@ -409,7 +409,7 @@ def histogram_equalize_data(data_array, inverse_transform=False, bins=None,
         dfhist['inputbins'] = plot1[1][:-1]
         dfhist['freq'] = plot1[0]
         dfhist['freq_cumsum'] = dfhist['freq'].values.cumsum()
-        dfhist['normalized_cumsum'] = dfhist['freq_cumsum'].apply(lambda x: x/float(size*size))
+        dfhist['normalized_cumsum'] = dfhist['freq_cumsum'].apply(lambda x: x/float(len(data_array)))
 
         dfhist['remap_values'] = mind + dfhist['normalized_cumsum']*float(maxd - mind)
 

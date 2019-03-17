@@ -11,16 +11,14 @@ import os
 import sys
 import bcolz
 import cv2
-import random
+import hashlib
+import random, math
 from xtune import *
 from sklearn.metrics import roc_auc_score, log_loss
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 import itertools
-
-# TODO:
-# Added HM, GM based weights desperateFitter
 
 
 def plot_confusion_matrix(y_true, y_pred, 
@@ -293,8 +291,6 @@ def doOneHot(df1, ranges):
     
     return finaldf.copy() 
     
-import hashlib
-    
 def hashfile(path, blocksize = 65536, mode='binary', alg='sha256'):
     if mode=='binary':
         afile = open(path, 'rb')
@@ -326,8 +322,6 @@ def findDup(parentFolder, listOfPaths=None, mode='binary'):
     mode: can be binary or text
 
     ''' 
-    import os
-    import sys
     
     dups = {}
     
@@ -360,7 +354,6 @@ def findDup(parentFolder, listOfPaths=None, mode='binary'):
 def histogram_equalize_data(data_array, inverse_transform=False, bins=None, 
                             lossless=True, loss_sensitivity='1x', dont_touch_value=0, plot=False, dfhist=None,
                             is_image_intensities=False):
-    import math, random
     '''
     Check https://en.wikipedia.org/wiki/Histogram_equalization
     
@@ -608,8 +601,11 @@ def desperateFitter(dflist, predcols=['pred'], gtcol='target', thrustMode=False,
     thrustMode: When true, takes models pairwise and calculates weights successively greedily starting by
     fitting the best models and then the lesser good models. 
     
+    # TODO:
+    # Add HM, GM based weights desperateFitter
+    
     '''
-    from sklearn.metrics import roc_auc_score, log_loss
+    
     if metric[-1] == 'auc':
         is_more_better = True
     elif metric[-1] == 'logloss':
